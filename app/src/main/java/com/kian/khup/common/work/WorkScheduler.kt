@@ -30,5 +30,12 @@ object WorkScheduler {
             ExistingPeriodicWorkPolicy.KEEP,
             PeriodicWorkRequestBuilder<RetentionWorker>(24, TimeUnit.HOURS).build(),
         )
+
+        // UsageStats 同步：每小时把系统用机时长聚合写入 app_sessions
+        wm.enqueueUniquePeriodicWork(
+            UsageStatsSyncWorker.UNIQUE_NAME,
+            ExistingPeriodicWorkPolicy.KEEP,
+            PeriodicWorkRequestBuilder<UsageStatsSyncWorker>(1, TimeUnit.HOURS).build(),
+        )
     }
 }

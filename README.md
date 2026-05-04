@@ -21,6 +21,25 @@
    - **悬浮窗**（Phase 4 才用，可以先不开）
 6. 授权完回到「首页」，看看是否开始接收通知。
 
+## 构建 / 重建
+
+Android Studio 如果找不到 `Rebuild Project` 菜单，用下面两步等价替代：
+
+1. `Build → Clean Project`
+2. `Build → Make Project`
+
+命令行可以直接跑：
+
+```bash
+./gradlew clean assembleDebug
+```
+
+如果刚改过 `KhupApplication`、Hilt 注解或 WorkManager 入口，但真机表现像旧代码，先卸载 debug 包再重新 Run：
+
+```bash
+adb uninstall com.kian.khup.debug
+```
+
 ## 项目结构
 
 ```

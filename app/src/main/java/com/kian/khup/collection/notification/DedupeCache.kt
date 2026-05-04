@@ -1,5 +1,6 @@
 package com.kian.khup.collection.notification
 
+import android.app.PendingIntent
 import java.util.concurrent.ConcurrentHashMap
 
 /**
@@ -38,6 +39,7 @@ data class NotificationSnapshot(
     val category: String?,
     val postTime: Long,
     val rawJson: String?,
+    val contentIntent: PendingIntent?,
 ) {
     val contentHash: Int = listOf(title, text, subText, bigText).hashCode()
 }

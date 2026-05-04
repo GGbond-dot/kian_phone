@@ -30,6 +30,15 @@ interface EventDao {
     @Query("SELECT COUNT(*) FROM events WHERE timestamp >= :sinceMs")
     suspend fun countSince(sinceMs: Long): Int
 
+    @Query("""
+        SELECT e.* FROM events e
+        LEFT JOIN derived_results d ON d.eventId = e.eventId
+        WHERE d.eventId IS NULL
+        ORDER BY e.timestamp DESC
+        LIMIT :limit
+    """)
+    suspend fun getUnclassified(limit: Int): List<Event>
+
     @Query("DELETE FROM events WHERE timestamp < :beforeMs")
     suspend fun deleteOlderThan(beforeMs: Long): Int
 }

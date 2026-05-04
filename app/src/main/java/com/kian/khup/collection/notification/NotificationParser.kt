@@ -45,6 +45,7 @@ object NotificationParser {
             category = n.category,
             postTime = sbn.postTime,
             rawJson = null, // TODO Phase 2：把 extras 序列化成 JSON 兜底
+            contentIntent = n.contentIntent,
         )
     }
 

@@ -46,7 +46,12 @@ class MessageListener : NotificationListenerService() {
         Log.i(TAG, "Listener connected")
         scope.launch {
             for (snap in channel) {
-                runCatching { repository.insert(snap.toEvent()) }
+                runCatching {
+                    val event = snap.toEvent()
+                    if (repository.insert(event)) {
+                        NotificationLaunchRegistry.register(event.eventId, snap.contentIntent)
+                    }
+                }
                     .onFailure { Log.w(TAG, "insert event failed: ${snap.packageName}", it) }
             }
         }
