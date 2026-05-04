@@ -1,0 +1,28 @@
+# Gradle
+.gradle/
+build/
+**/build/
+local.properties
+.idea/
+*.iml
+
+# Captures + logs
+captures/
+*.log
+
+# Android Studio
+.cxx/
+.externalNativeBuild/
+
+# Keystore（不要进版本库）
+*.jks
+*.keystore
+release.keystore.properties
+
+# OS
+.DS_Store
+
+# Memory dir 是 Claude 的，不进 Git
+/memory/
+
+# Room 生成的 schema 我们要保留，所以不忽略 app/schemas/
