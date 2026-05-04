@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -13,13 +14,19 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.clickable
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Card
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
@@ -29,7 +36,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.kian.khup.core.data.db.ClassifiedEvent
+import com.kian.khup.collection.notification.LaunchCapability
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -53,15 +60,17 @@ fun MessagesScreen(viewModel: MessagesViewModel = hiltViewModel()) {
         messages = messages,
         onCategorySelected = viewModel::selectCategory,
         onMessageClick = viewModel::openMessage,
+        onCategoryChange = viewModel::updateClassification,
     )
 }
 
 @Composable
 private fun MessagesContent(
     selectedCategory: String,
-    messages: List<ClassifiedEvent>,
+    messages: List<MessageUiItem>,
     onCategorySelected: (String) -> Unit,
-    onMessageClick: (ClassifiedEvent) -> Unit,
+    onMessageClick: (MessageUiItem) -> Unit,
+    onCategoryChange: (MessageUiItem, String) -> Unit,
 ) {
     Column(modifier = Modifier.fillMaxSize()) {
         LazyColumn(
@@ -80,10 +89,11 @@ private fun MessagesContent(
                     EmptyMessages()
                 }
             } else {
-                items(messages, key = { it.event.eventId }) { message ->
+                items(messages, key = { it.message.event.eventId }) { message ->
                     MessageCard(
-                        message = message,
+                        item = message,
                         onClick = { onMessageClick(message) },
+                        onCategoryChange = { category -> onCategoryChange(message, category) },
                     )
                 }
             }
@@ -112,7 +122,12 @@ private fun CategoryChips(
 }
 
 @Composable
-private fun MessageCard(message: ClassifiedEvent, onClick: () -> Unit) {
+private fun MessageCard(
+    item: MessageUiItem,
+    onClick: () -> Unit,
+    onCategoryChange: (String) -> Unit,
+) {
+    val message = item.message
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -146,13 +161,54 @@ private fun MessageCard(message: ClassifiedEvent, onClick: () -> Unit) {
                     overflow = TextOverflow.Ellipsis,
                 )
             }
-            Text(
-                text = "${priorityText(message.priority)} · ${message.event.packageName} · ${formatTime(message.event.timestamp)}",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = "${priorityText(message.priority)} · ${launchText(item.launchCapability)} · ${message.event.packageName} · ${formatTime(message.event.timestamp)}",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f),
+                )
+                CategoryMenu(
+                    currentCategory = message.classification,
+                    onCategoryChange = onCategoryChange,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun CategoryMenu(
+    currentCategory: String,
+    onCategoryChange: (String) -> Unit,
+) {
+    var expanded by remember { mutableStateOf(false) }
+    Box {
+        TextButton(onClick = { expanded = true }) {
+            Text("改分类")
+        }
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
+        ) {
+            MessageCategory.entries
+                .filter { it != MessageCategory.All }
+                .forEach { category ->
+                    DropdownMenuItem(
+                        text = { Text(category.label) },
+                        enabled = category.label != currentCategory,
+                        onClick = {
+                            expanded = false
+                            onCategoryChange(category.label)
+                        },
+                    )
+                }
         }
     }
 }
@@ -183,4 +239,11 @@ private fun priorityText(priority: Int): String =
         2 -> "中优先级"
         1 -> "低优先级"
         else -> "普通"
+    }
+
+private fun launchText(capability: LaunchCapability): String =
+    when (capability) {
+        LaunchCapability.DirectNotification -> "可直达通知"
+        LaunchCapability.App -> "打开 App"
+        LaunchCapability.None -> "无法打开"
     }

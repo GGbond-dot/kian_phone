@@ -1,5 +1,6 @@
 package com.kian.khup.collection.usage
 
+import android.app.usage.UsageEvents
 import android.app.usage.UsageStatsManager
 import android.content.Context
 import android.content.pm.PackageManager
@@ -61,5 +62,27 @@ class UsageStatsCollector @Inject constructor(
         } catch (_: PackageManager.NameNotFoundException) {
             packageName
         }
+    }
+
+    fun getCurrentForegroundPackage(lookbackMs: Long = 15_000): String? {
+        val manager = usageStatsManager ?: return null
+        val now = System.currentTimeMillis()
+        val events = manager.queryEvents(now - lookbackMs, now) ?: return null
+        val event = UsageEvents.Event()
+        var currentPackage: String? = null
+
+        while (events.hasNextEvent()) {
+            events.getNextEvent(event)
+            when (event.eventType) {
+                UsageEvents.Event.ACTIVITY_RESUMED,
+                UsageEvents.Event.MOVE_TO_FOREGROUND -> currentPackage = event.packageName
+                UsageEvents.Event.ACTIVITY_PAUSED,
+                UsageEvents.Event.MOVE_TO_BACKGROUND -> {
+                    if (currentPackage == event.packageName) currentPackage = null
+                }
+            }
+        }
+
+        return currentPackage
     }
 }

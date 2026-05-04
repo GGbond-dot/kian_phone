@@ -435,3 +435,366 @@ adb shell dumpsys jobscheduler | grep -B 1 -A 3 "com.kian.khup"
 - **Studio 没有显式 "Rebuild Project" 菜单时**：用「Build → Clean Project」+「Build → Make Project」组合，等价
 - **改了 `KhupApplication` / Hilt 注解后增量编译可能不生效**：症状是新代码没进 APK。最稳办法是 `adb uninstall` 后再从 Studio Run
 - 用户终端 prompt 是 `kian@kianSONG:~/kian_phone$`，工作目录已经在项目根
+
+---
+
+## 临时追加：Messages 跳转状态 + 手动分类修正记录
+
+背景：
+
+- 用户已测试 Messages 点击跳转，认为“还可以”，不需要继续专门打磨。
+- 顺手保留了消息卡片上的跳转能力展示，后续观察效果即可。
+- 用户表示分类需求很低、消息也不多，所以分类链路不要继续深挖统计。
+
+新增/改动：
+
+1. **`NotificationLaunchRegistry.kt`**（改）
+   - 新增 `directLaunchEventIds: StateFlow<Set<String>>`
+   - 注册到内存的 `PendingIntent` 会发布到 UI
+   - 新增 `LaunchCapability`：`DirectNotification` / `App` / `None`
+   - Messages 卡片可显示「可直达通知 / 打开 App / 无法打开」
+
+2. **`MessagesViewModel.kt` / `MessagesScreen.kt`**（改）
+   - `MessagesViewModel.messages` 从 `ClassifiedEvent` 包装成 `MessageUiItem`
+   - 卡片底部显示跳转能力
+   - 卡片右下角新增「改分类」菜单
+   - 可手动改成：社交、验证码、工作、推广、算法推送、其他
+
+3. **`ClassificationFeedback.kt`**（新增）
+   - 新表 `classification_feedback`
+   - 字段：`id` / `eventId` / `oldClassification` / `newClassification` / `createdAt`
+   - 外键级联到 `events.eventId`
+   - 目的：记录人工分类修正，后续可作为规则 / LLM 评估样本
+
+4. **`ClassificationFeedbackDao.kt`**（新增）
+   - `insert(feedback)`
+
+5. **`DerivedResultDao.kt` / `MessageRepository.kt`**（改）
+   - 新增 `getClassification(eventId)`
+   - `updateClassification()` 改为事务：
+     - 先插入 `classification_feedback`
+     - 再更新 `derived_results.classification`
+     - `modelVersion` 标记为 `manual-v1`
+
+6. **`AppDatabase.kt` / `DatabaseModule.kt`**（改）
+   - Room version 从 3 升到 4
+   - 新增 `ClassificationFeedback::class`
+   - 新增 `classificationFeedbackDao()`
+   - 新增正式 `MIGRATION_3_4`
+   - 生成 `app/schemas/com.kian.khup.core.data.db.AppDatabase/4.json`
+
+验证：
+
+| 验证项 | 结果 |
+|---|---|
+| `./gradlew assembleDebug` | ✅ `BUILD SUCCESSFUL in 4s` |
+| APK 安装 | ✅ `adb install -r ...` 成功 |
+| 应用启动 | ✅ pid `17791` |
+| KHUP 进程日志 | ✅ 未看到 AndroidRuntime / Room / SQLite / migration 错误 |
+
+注意：
+
+- 设备日志里出现过微信自己的 SQLite 报错，不属于 KHUP；按 KHUP pid 过滤后无异常。
+- `sqlite3` 在手机 `run-as` 环境里执行失败：`Permission denied`，所以没有直接 shell 查表；Room/KSP schema 校验和启动迁移日志均正常。
+
+---
+
+## 下一步建议（新对话从这里接）
+
+不要继续深挖分类统计。用户明确说分类需求低，消息也不多。
+
+下一步优先做 **算法 App 干预 MVP**，先不要急着接大模型：
+
+1. **抖音 / 小红书阈值提醒**
+   - 复用已有 UsageStats 今日使用时长
+   - 例如抖音超过 30 分钟、小红书超过 20 分钟
+   - 先做提醒 + 记录，不做强阻断
+
+2. **新增 action log 链路**
+   - 目前已有 `ActionLog` entity，但还没有 DAO / Repository / UI 使用
+   - 可以先把“超过阈值触发提醒”写入 `action_logs`
+
+3. **再考虑大模型**
+   - 端侧 LLM 不建议现在只为消息分类接入，收益低、成本高
+   - 更合理用途：每日复盘、主线偏离总结、沉迷原因总结、干预建议
+   - 真要接，第一步应是 MNN-LLM 最小可运行验证：固定 prompt → logcat 输出
+
+---
+
+## 临时追加：算法 App 干预 MVP
+
+背景：
+
+- 用户不想继续深挖消息分类统计。
+- 本轮先做抖音 / 小红书阈值提醒，不做强阻断，不接大模型。
+- 阈值暂定：抖音 30 分钟，小红书 20 分钟。
+
+新增/改动：
+
+1. **`ActionLogDao.kt`**（新增）
+   - `insert()`
+   - `hasActionSince(ruleId, actionType, sinceMs)`
+   - `observeRecent(limit)`
+
+2. **`AppSessionDao.kt`**（改）
+   - 新增 `getUsageForPackagesSince(packageNames, sinceMs)`
+   - 给干预规则读取当天某些 package 的累计前台时长
+
+3. **`InterventionRepository.kt`**（新增）
+   - 规则：
+     - `algorithm.douyin.daily_30m` → `com.ss.android.ugc.aweme` ≥ 30 分钟
+     - `algorithm.xiaohongshu.daily_20m` → `com.xingin.xhs` ≥ 20 分钟
+   - 超阈值后发提醒并写 `actions_log`
+   - 同一规则每天只提醒一次
+   - 用 `Mutex` 避免 Dashboard resume 和 Worker 同时评估造成重复记录
+
+4. **`InterventionNotifier.kt`**（新增）
+   - 建立本地通知 channel：`khup_intervention`
+   - 发送“使用提醒”通知，点击回 KHUP 首页
+   - 没有 `POST_NOTIFICATIONS` 权限时不发通知，但仍写 action log，payload 里记录 `notificationPosted=false`
+
+5. **`InterventionCheckWorker.kt`**（新增）
+   - 每 15 分钟跑一次
+   - 先 `UsageStatsRepository.syncToday()`，再 `InterventionRepository.evaluateToday()`
+   - 无 UsageStats 权限时跳过
+   - `UNIQUE_NAME = "khup.intervention_check"`
+
+6. **`WorkScheduler.kt`**（改）
+   - 注册 `InterventionCheckWorker`
+
+7. **`MainActivity.kt`**（改）
+   - App 启动时申请 `POST_NOTIFICATIONS`
+   - 这是 Android 13+ 自发通知必须的 runtime 权限
+
+8. **`AppDatabase.kt` / `DatabaseModule.kt`**（改）
+   - 暴露 `actionLogDao()`
+   - 提供 `ActionLogDao`
+   - 注意：Room version 未变化，因为 `actions_log` 表从 v1 schema 就已经存在，只是以前没 DAO
+
+9. **`DashboardViewModel.kt` / `DashboardScreen.kt`**（改）
+   - Dashboard 新增「算法 App 干预」卡片
+   - 没有记录时显示当前规则说明
+   - 有记录时展示最近 action log
+   - Dashboard resume 时同步 UsageStats 后立即评估一次干预规则
+
+验证：
+
+| 验证项 | 结果 |
+|---|---|
+| `./gradlew assembleDebug` | ✅ `BUILD SUCCESSFUL in 4s` |
+| APK 安装 | ✅ `adb install -r ...` 成功 |
+| 应用启动 | ✅ |
+| NLS 连接 | ✅ logcat: `KHUP/NLS: Listener connected` |
+| Intervention Worker 执行 | ✅ logcat: `KHUP/Intervention: intervention check finished: triggered=1` |
+| WorkManager 注册 | ✅ JobScheduler 里有新的 15 分钟 KHUP job |
+| 启动异常 | ✅ 未看到 KHUP 的 AndroidRuntime / Room / Hilt 崩溃 |
+
+注意：
+
+- 本轮没有做强阻断，只做提醒和记录。
+- 如果用户拒绝通知权限，系统通知不会发出，但 `actions_log` 仍会记录一次，payload 里 `notificationPosted=false`。
+- 当前 package 只覆盖标准中国版抖音 / 小红书；后续如果装了极速版或国际版，需要补 packageName。
+
+下一步可选：
+
+- Settings checklist 增加“通知权限”状态。
+- Dashboard 干预卡片解析 payload，显示“实际用了多久 / 是否成功发通知”。
+- 加“我知道了 / 今天不再提醒 / 调高阈值”等用户响应，写回 `userResponse`。
+- 后续再做悬浮窗提醒或 Accessibility 强干预。
+
+### 追加：通知权限状态 + 可调阈值
+
+用户追问：
+
+- 在哪里查看通知权限有没有开启？
+- 时间限制是否应该在软件内手动调？
+- 当前干预措施是什么？
+
+本轮补充：
+
+1. **`NotificationPermissions.kt`**（改）
+   - 新增 `hasPostNotificationsPermission()`
+   - 新增 `openAppNotificationSettings()`
+   - 区分：
+     - “通知使用权”= KHUP 读取其他 App 通知
+     - “发送通知权限”= KHUP 自己发提醒通知
+
+2. **`InterventionSettingsRepository.kt`**（新增）
+   - 用 SharedPreferences 保存阈值
+   - 默认：抖音 30 分钟，小红书 20 分钟
+   - 范围限制：1-240 分钟
+   - 提供 `observeSettings()` 给 UI 实时刷新
+
+3. **`SettingsViewModel.kt`**（新增）
+   - 暴露 `interventionSettings`
+   - 提供 `setDouyinLimit()` / `setXiaohongshuLimit()`
+
+4. **`SettingsScreen.kt`**（改）
+   - 权限设置顶部新增「发送通知权限」卡片
+   - 页面底部新增「干预阈值」卡片
+   - 抖音 / 小红书阈值支持用 +/- 以 5 分钟步进调节
+
+5. **`InterventionRepository.kt`**（改）
+   - 干预规则从设置仓库读取阈值，不再硬编码 30/20
+   - ruleId 改为稳定值：
+     - `algorithm.douyin.daily`
+     - `algorithm.xiaohongshu.daily`
+
+验证：
+
+| 验证项 | 结果 |
+|---|---|
+| `./gradlew assembleDebug` | ✅ `BUILD SUCCESSFUL in 6s` |
+| APK 安装 | ✅ `adb install -r ...` 成功 |
+| 应用启动 | ✅ |
+| NLS 连接 | ✅ logcat: `KHUP/NLS: Listener connected` |
+| 启动异常 | ✅ 未看到 KHUP 的 AndroidRuntime / Room / Hilt 崩溃 |
+
+### 追加：超阈值后打开算法 App 先输入目的
+
+用户需求：
+
+- 超过规定时间后，再点开抖音 / 小红书，不应该直接进入。
+- 先弹出一个输入框，要求写“这次打开的目的是什么”。
+- 输入后才能继续打开。
+
+本轮实现的是悬浮窗 MVP，不用 Accessibility：
+
+1. **`UsageStatsCollector.kt`**（改）
+   - 新增 `getCurrentForegroundPackage()`
+   - 通过 `UsageStatsManager.queryEvents()` 看最近前台 App
+
+2. **`InterventionRepository.kt`**（改）
+   - 新增 `isMonitoredPackage(packageName)`
+   - 新增 `getExceededRuleForPackage(packageName)`
+   - 新增 `recordPurposeGate(rule, purpose)`
+   - 目的输入记录写入 `actions_log`
+   - `actionType = "purpose_gate"`
+   - `userResponse = "purpose_submitted"`
+
+3. **`ForegroundAppMonitorService.kt`**（新增）
+   - Hilt 注入 `UsageStatsCollector` / `UsageStatsRepository` / `InterventionRepository`
+   - KHUP 打开后启动一个前台服务
+   - 每 3 秒轮询当前前台 App
+   - 只有当前台 App 是抖音 / 小红书时才同步 UsageStats，避免刷其他 App 时频繁写库
+   - 如果当天累计时长超过阈值：
+     - 弹 `TYPE_APPLICATION_OVERLAY` 全屏悬浮窗
+     - 要求输入目的
+     - 输入非空后才能点“写好了，继续”
+     - 记录目的并移除悬浮窗
+   - 同一个规则提交目的后有 15 分钟冷却，避免短时间内反复弹
+
+4. **`AndroidManifest.xml`**（改）
+   - 注册 `ForegroundAppMonitorService`
+   - `foregroundServiceType="dataSync"`
+
+5. **`MainActivity.kt`**（改）
+   - App 启动时调用 `ForegroundAppMonitorService.start(this)`
+   - 没放到 `Application`，避免系统后台拉起 KHUP 时触发前台服务启动限制
+
+验证：
+
+| 验证项 | 结果 |
+|---|---|
+| `./gradlew assembleDebug` | ✅ `BUILD SUCCESSFUL in 6s` |
+| APK 安装 | ✅ `adb install -r ...` 成功 |
+| 应用启动 | ✅ |
+| NLS 连接 | ✅ logcat: `KHUP/NLS: Listener connected` |
+| 前台监控服务 | ✅ `dumpsys activity services` 显示 `ForegroundAppMonitorService` 且 `isForeground=true` |
+| 启动异常 | ✅ 未看到 KHUP 的 AndroidRuntime / Room / Hilt / ForegroundService 崩溃 |
+
+测试方法：
+
+1. 确认 Settings 里：
+   - 使用情况访问：已授权
+   - 悬浮窗权限：已授权
+   - 发送通知权限：建议开启，但目的弹窗主要依赖悬浮窗权限
+2. 把 Settings 里的抖音 / 小红书阈值调低，比如 1 分钟。
+3. 打开对应 App 用超过阈值。
+4. 回 KHUP 一次，确保前台监控服务启动。
+5. 再打开抖音 / 小红书，预期出现全屏目的输入悬浮窗。
+
+当前限制：
+
+- 这是悬浮窗覆盖，不是真正系统级禁止启动 App。
+- UsageStats 是轮询，不是实时回调，可能有 1-3 秒延迟。
+- 如果 KHUP 被系统或用户强杀，监控失效。
+- 冷却时间现在写死 15 分钟，后续可以做成设置项。
+
+### 追加：目的输入弹窗配色 + 自动降媒体音量
+
+用户反馈：
+
+- 悬浮窗背景是深蓝色，但输入区域字体/背景搭配不好，打字看不清。
+- 希望触发弹窗时顺便把声音调到最低，输入原因后再恢复。
+
+本轮改动：
+
+1. **`ForegroundAppMonitorService.kt`**（改）
+   - 输入框改成白色圆角背景、深色文字、灰色 hint
+   - 确认按钮改成蓝色圆角背景、白色文字
+   - 按钮 disabled 时变成灰蓝色
+   - 弹目的输入框前保存当前媒体音量到 `volumeBeforeGate`
+   - 调用 `AudioManager.setStreamVolume(STREAM_MUSIC, minVolume, 0)` 把媒体音量降到最低
+   - 用户输入原因并提交后调用 `restoreMediaVolume()` 恢复到弹窗前的媒体音量
+
+2. **`AndroidManifest.xml`**（改）
+   - 新增 `android.permission.MODIFY_AUDIO_SETTINGS`
+
+验证：
+
+| 验证项 | 结果 |
+|---|---|
+| `./gradlew assembleDebug` | ✅ `BUILD SUCCESSFUL in 4s` |
+| APK 安装 | ✅ `adb install -r ...` 成功 |
+| 应用启动 | ✅ |
+| NLS 连接 | ✅ logcat: `KHUP/NLS: Listener connected` |
+| 启动异常 | ✅ 未看到 KHUP 的 AndroidRuntime / Room / Hilt / ForegroundService 崩溃 |
+
+本次对“目的输入干预”相关所有修改的完整汇总：
+
+- **阈值提醒**：抖音 / 小红书超过设置阈值后，写入 `actions_log` 并可发系统通知。
+- **可调阈值**：Settings 里可用 +/- 调整抖音、小红书每日阈值，默认 30 / 20 分钟。
+- **权限状态**：Settings 里能看“发送通知权限”“通知使用权”“使用情况访问”“悬浮窗权限”等状态。
+- **今日干预记录**：Dashboard 的“算法 App 干预”只显示今天的干预记录，第二天自动回到空状态；历史记录保留在库里。
+- **前台监控服务**：KHUP 打开后启动 `ForegroundAppMonitorService`，每 3 秒查看当前前台 App。
+- **目的输入悬浮窗**：超阈值后再打开抖音 / 小红书，会弹全屏悬浮窗要求输入目的，非空才能继续。
+- **冷却机制**：提交目的后，同一规则 15 分钟内不重复弹。
+- **目的记录**：提交目的会写入 `actions_log`，`actionType = "purpose_gate"`，`userResponse = "purpose_submitted"`。
+- **弹窗视觉**：输入框改成浅色背景深色字，按钮状态颜色更清楚。
+- **音量处理**：弹窗出现前把媒体音量降到最低，提交目的后恢复到弹窗前音量。
+
+仍未做：
+
+- 冷却时间还不能在 Settings 里配置。
+- 目的输入记录还没有在 Dashboard 中解析展示“目的内容 / 当时已用多久”。
+- 当前只覆盖中国版抖音 `com.ss.android.ugc.aweme` 和小红书 `com.xingin.xhs`。
+- 仍是悬浮窗覆盖，不是 Accessibility 级别的强阻断。
+
+### 追加：Dashboard 干预栏改为“今日记录”
+
+用户确认：首页「算法 App 干预」栏第二天应该刷新，不应一直展示历史最近记录。
+
+本轮改动：
+
+1. **`ActionLogDao.kt`**（改）
+   - 新增 `observeSince(sinceMs, limit)`
+
+2. **`InterventionRepository.kt`**（改）
+   - 新增 `observeTodayActions(limit)`
+   - 使用今天 00:00 作为 `sinceMs`
+
+3. **`DashboardViewModel.kt` / `DashboardScreen.kt`**（改）
+   - 首页干预卡片从 `recentActions` 改为 `todayActions`
+   - 第二天会自动显示空状态和规则说明
+   - 历史 `actions_log` 仍保留，只是不在首页展示
+
+验证：
+
+| 验证项 | 结果 |
+|---|---|
+| `./gradlew assembleDebug` | ✅ `BUILD SUCCESSFUL in 11s` |
+| APK 安装 | ✅ `adb install -r ...` 成功 |
+| 应用启动 | ✅ |
+| NLS 连接 | ✅ logcat: `KHUP/NLS: Listener connected` |
+| 启动异常 | ✅ 未看到 KHUP 的 AndroidRuntime / Room / Hilt 崩溃 |

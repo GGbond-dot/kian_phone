@@ -50,4 +50,12 @@ interface AppSessionDao {
         ORDER BY dayStartMs ASC
     """)
     fun observeDailyUsageSince(sinceMs: Long): Flow<List<DailyUsageTotal>>
+
+    @Query("""
+        SELECT COALESCE(SUM(COALESCE(durationMs, 0)), 0)
+        FROM app_sessions
+        WHERE startTime >= :sinceMs
+          AND packageName IN (:packageNames)
+    """)
+    suspend fun getUsageForPackagesSince(packageNames: List<String>, sinceMs: Long): Long
 }

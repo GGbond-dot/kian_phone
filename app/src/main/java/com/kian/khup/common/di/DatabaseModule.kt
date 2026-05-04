@@ -4,8 +4,10 @@ import android.content.Context
 import androidx.room.Room
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
+import com.kian.khup.core.data.db.ActionLogDao
 import com.kian.khup.core.data.db.AppDatabase
 import com.kian.khup.core.data.db.AppSessionDao
+import com.kian.khup.core.data.db.ClassificationFeedbackDao
 import com.kian.khup.core.data.db.DailyTaskDao
 import com.kian.khup.core.data.db.DerivedResultDao
 import com.kian.khup.core.data.db.EventDao
@@ -24,7 +26,7 @@ object DatabaseModule {
     @Singleton
     fun provideDatabase(@ApplicationContext context: Context): AppDatabase =
         Room.databaseBuilder(context, AppDatabase::class.java, "khup.db")
-            .addMigrations(MIGRATION_2_3)
+            .addMigrations(MIGRATION_2_3, MIGRATION_3_4)
             // 开发期 schema 还在变，destructive migration 简单粗暴。
             // TODO: 1.0 发布前补正常的 Migration 链。
             .fallbackToDestructiveMigration()
@@ -42,6 +44,13 @@ object DatabaseModule {
     @Provides
     fun provideDailyTaskDao(db: AppDatabase): DailyTaskDao = db.dailyTaskDao()
 
+    @Provides
+    fun provideClassificationFeedbackDao(db: AppDatabase): ClassificationFeedbackDao =
+        db.classificationFeedbackDao()
+
+    @Provides
+    fun provideActionLogDao(db: AppDatabase): ActionLogDao = db.actionLogDao()
+
     private val MIGRATION_2_3 = object : Migration(2, 3) {
         override fun migrate(db: SupportSQLiteDatabase) {
             db.execSQL(
@@ -58,6 +67,29 @@ object DatabaseModule {
             )
             db.execSQL("CREATE INDEX IF NOT EXISTS index_daily_tasks_dayStartMs ON daily_tasks(dayStartMs)")
             db.execSQL("CREATE INDEX IF NOT EXISTS index_daily_tasks_isDone ON daily_tasks(isDone)")
+        }
+    }
+
+    private val MIGRATION_3_4 = object : Migration(3, 4) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL(
+                """
+                CREATE TABLE IF NOT EXISTS classification_feedback (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                    eventId TEXT NOT NULL,
+                    oldClassification TEXT NOT NULL,
+                    newClassification TEXT NOT NULL,
+                    createdAt INTEGER NOT NULL,
+                    FOREIGN KEY(eventId) REFERENCES events(eventId) ON UPDATE NO ACTION ON DELETE CASCADE
+                )
+                """.trimIndent()
+            )
+            db.execSQL(
+                "CREATE INDEX IF NOT EXISTS index_classification_feedback_eventId ON classification_feedback(eventId)"
+            )
+            db.execSQL(
+                "CREATE INDEX IF NOT EXISTS index_classification_feedback_createdAt ON classification_feedback(createdAt)"
+            )
         }
     }
 }

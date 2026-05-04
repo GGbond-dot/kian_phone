@@ -9,8 +9,13 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Add
+import androidx.compose.material.icons.outlined.Remove
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
@@ -27,16 +32,20 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.ui.Alignment
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.kian.khup.collection.notification.NotificationPermissions
+import com.kian.khup.core.data.repository.InterventionSettings
 
 /**
  * 权限引导主页面。MIUI 上每个权限都需要用户手动到设置里开，
  * 这个页面负责检测当前状态、提供「去开启」按钮、给出 MIUI 二次确认提示。
  */
 @Composable
-fun SettingsScreen() {
+fun SettingsScreen(viewModel: SettingsViewModel = hiltViewModel()) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
+    val interventionSettings by viewModel.interventionSettings.collectAsStateWithLifecycle()
 
     // 用户从设置页回来时刷新权限状态
     var refreshTick by remember { mutableStateOf(0) }
@@ -58,6 +67,9 @@ fun SettingsScreen() {
     }
 
     val nlsEnabled = remember(refreshTick) { NotificationPermissions.isNotificationListenerEnabled(context) }
+    val postNotificationsEnabled = remember(refreshTick) {
+        NotificationPermissions.hasPostNotificationsPermission(context)
+    }
     val usageEnabled = remember(refreshTick) { NotificationPermissions.hasUsageAccess(context) }
     val overlayEnabled = remember(refreshTick) { NotificationPermissions.hasOverlayPermission(context) }
     val autostartConfirmed = remember(refreshTick) { NotificationPermissions.isMiuiAutostartConfirmed(context) }
@@ -71,6 +83,13 @@ fun SettingsScreen() {
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Text("权限设置", style = MaterialTheme.typography.headlineSmall)
+
+        PermissionCard(
+            title = "发送通知权限",
+            description = "授权后 KHUP 才能发出抖音/小红书超时提醒。没有这个权限时，只会在首页记录干预，不会弹系统通知。",
+            status = PermissionStatus.Checked(postNotificationsEnabled),
+            onClick = { NotificationPermissions.openAppNotificationSettings(context) },
+        )
 
         PermissionCard(
             title = "通知使用权（必需）",
@@ -112,12 +131,85 @@ fun SettingsScreen() {
                 NotificationPermissions.openMiuiBatterySettings(context)
             },
         )
+
+        InterventionSettingsCard(
+            settings = interventionSettings,
+            onDouyinChange = viewModel::setDouyinLimit,
+            onXiaohongshuChange = viewModel::setXiaohongshuLimit,
+        )
     }
 }
 
 private sealed interface PermissionStatus {
     data class Checked(val granted: Boolean) : PermissionStatus
     data class ManualCheck(val confirmed: Boolean) : PermissionStatus
+}
+
+@Composable
+private fun InterventionSettingsCard(
+    settings: InterventionSettings,
+    onDouyinChange: (Int) -> Unit,
+    onXiaohongshuChange: (Int) -> Unit,
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+    ) {
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Text("干预阈值", style = MaterialTheme.typography.titleMedium)
+            Text(
+                "达到当天累计时长后，KHUP 会提醒一次并写入干预记录。",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            ThresholdRow(
+                title = "抖音",
+                minutes = settings.douyinLimitMinutes,
+                onChange = onDouyinChange,
+            )
+            ThresholdRow(
+                title = "小红书",
+                minutes = settings.xiaohongshuLimitMinutes,
+                onChange = onXiaohongshuChange,
+            )
+        }
+    }
+}
+
+@Composable
+private fun ThresholdRow(
+    title: String,
+    minutes: Int,
+    onChange: (Int) -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column {
+            Text(title, style = MaterialTheme.typography.bodyLarge)
+            Text(
+                "${minutes} 分钟",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            IconButton(
+                onClick = { onChange(minutes - 5) },
+                enabled = minutes > 5,
+            ) {
+                Icon(Icons.Outlined.Remove, contentDescription = "减少$title 阈值")
+            }
+            IconButton(
+                onClick = { onChange(minutes + 5) },
+                enabled = minutes < 240,
+            ) {
+                Icon(Icons.Outlined.Add, contentDescription = "增加$title 阈值")
+            }
+        }
+    }
 }
 
 private enum class ManualPermission {

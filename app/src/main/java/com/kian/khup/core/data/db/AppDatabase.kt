@@ -5,6 +5,7 @@ import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
 import com.kian.khup.core.data.db.entities.ActionLog
 import com.kian.khup.core.data.db.entities.AppSession
+import com.kian.khup.core.data.db.entities.ClassificationFeedback
 import com.kian.khup.core.data.db.entities.DailyTask
 import com.kian.khup.core.data.db.entities.DerivedResult
 import com.kian.khup.core.data.db.entities.Event
@@ -18,8 +19,9 @@ import com.kian.khup.core.data.db.entities.RuleState
         DailyTask::class,
         RuleState::class,
         ActionLog::class,
+        ClassificationFeedback::class,
     ],
-    version = 3,
+    version = 4,
     exportSchema = true,
 )
 @TypeConverters(Converters::class)
@@ -28,5 +30,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun appSessionDao(): AppSessionDao
     abstract fun derivedResultDao(): DerivedResultDao
     abstract fun dailyTaskDao(): DailyTaskDao
-    // TODO Phase 2+：RuleStateDao / ActionLogDao
+    abstract fun classificationFeedbackDao(): ClassificationFeedbackDao
+    abstract fun actionLogDao(): ActionLogDao
+    // TODO Phase 2+：RuleStateDao
 }

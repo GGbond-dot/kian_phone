@@ -40,6 +40,7 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.kian.khup.collection.usage.AppUsageSummary
+import com.kian.khup.core.data.db.entities.ActionLog
 import com.kian.khup.core.data.db.entities.DailyTask
 import com.kian.khup.core.data.db.entities.Event
 import java.text.SimpleDateFormat
@@ -52,6 +53,7 @@ fun DashboardScreen(viewModel: DashboardViewModel = hiltViewModel()) {
     val usageUiState by viewModel.usageUiState.collectAsStateWithLifecycle()
     val todayTasks by viewModel.todayTasks.collectAsStateWithLifecycle()
     val overdueTasks by viewModel.overdueTasks.collectAsStateWithLifecycle()
+    val todayActions by viewModel.todayActions.collectAsStateWithLifecycle()
     val lifecycleOwner = LocalLifecycleOwner.current
 
     DisposableEffect(lifecycleOwner) {
@@ -67,6 +69,7 @@ fun DashboardScreen(viewModel: DashboardViewModel = hiltViewModel()) {
         usageUiState = usageUiState,
         todayTasks = todayTasks,
         overdueTasks = overdueTasks,
+        todayActions = todayActions,
         onAddTask = viewModel::addTask,
         onTaskCheckedChange = viewModel::setTaskDone,
         onDeleteTask = viewModel::deleteTask,
@@ -79,6 +82,7 @@ private fun DashboardContent(
     usageUiState: UsageUiState,
     todayTasks: List<DailyTask>,
     overdueTasks: List<DailyTask>,
+    todayActions: List<ActionLog>,
     onAddTask: (String) -> Unit,
     onTaskCheckedChange: (Long, Boolean) -> Unit,
     onDeleteTask: (Long) -> Unit,
@@ -101,6 +105,9 @@ private fun DashboardContent(
             UsageSummaryCard(usageUiState)
         }
         item {
+            InterventionCard(actions = todayActions)
+        }
+        item {
             Text(
                 text = "最近通知",
                 style = MaterialTheme.typography.titleMedium,
@@ -113,6 +120,50 @@ private fun DashboardContent(
             }
         } else {
             items(events, key = { it.eventId }) { EventCard(it) }
+        }
+    }
+}
+
+@Composable
+private fun InterventionCard(actions: List<ActionLog>) {
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("算法 App 干预", style = MaterialTheme.typography.titleMedium)
+            if (actions.isEmpty()) {
+                Text(
+                    "超过你在设置里配置的当天累计时长后，会提醒一次并记录。",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            } else {
+                actions.forEach { action ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = actionRuleLabel(action.ruleId),
+                                style = MaterialTheme.typography.bodyMedium,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                            Text(
+                                text = action.actionType,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                        Text(
+                            text = formatTime(action.triggeredAt),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(start = 12.dp),
+                        )
+                    }
+                }
+            }
         }
     }
 }
@@ -340,6 +391,15 @@ private val timeFmt = SimpleDateFormat("MM-dd HH:mm:ss", Locale.getDefault())
 private val dayFmt = SimpleDateFormat("MM-dd", Locale.getDefault())
 private fun formatTime(ts: Long): String = timeFmt.format(Date(ts))
 private fun formatDay(ts: Long): String = dayFmt.format(Date(ts))
+
+private fun actionRuleLabel(ruleId: String): String =
+    when (ruleId) {
+        "algorithm.douyin.daily" -> "抖音超过阈值"
+        "algorithm.xiaohongshu.daily" -> "小红书超过阈值"
+        "algorithm.douyin.daily_30m" -> "抖音超过 30 分钟"
+        "algorithm.xiaohongshu.daily_20m" -> "小红书超过 20 分钟"
+        else -> ruleId
+    }
 
 private fun formatDuration(durationMs: Long): String {
     val totalMinutes = durationMs / 60_000

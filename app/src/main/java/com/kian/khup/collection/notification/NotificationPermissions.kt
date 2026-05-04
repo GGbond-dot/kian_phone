@@ -1,13 +1,16 @@
 package com.kian.khup.collection.notification
 
+import android.Manifest
 import android.app.AppOpsManager
 import android.content.ActivityNotFoundException
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Process
 import android.provider.Settings
+import androidx.core.content.ContextCompat
 
 /**
  * NLS / UsageStats / 悬浮窗都不能 runtime 申请，必须跳系统设置。
@@ -34,6 +37,20 @@ object NotificationPermissions {
         startActivitySafely(
             context = context,
             intent = Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS),
+            fallback = appDetailsIntent(context),
+        )
+    }
+
+    /** 检查 KHUP 自己能不能发提醒通知。Android 13+ 需要 runtime 授权。 */
+    fun hasPostNotificationsPermission(context: Context): Boolean =
+        ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) ==
+            PackageManager.PERMISSION_GRANTED
+
+    fun openAppNotificationSettings(context: Context) {
+        startActivitySafely(
+            context = context,
+            intent = Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+                .putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName),
             fallback = appDetailsIntent(context),
         )
     }

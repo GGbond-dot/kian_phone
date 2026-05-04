@@ -27,6 +27,22 @@ interface DerivedResultDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertAll(results: List<DerivedResult>)
 
+    @Query("SELECT classification FROM derived_results WHERE eventId = :eventId")
+    suspend fun getClassification(eventId: String): String?
+
+    @Query("""
+        UPDATE derived_results
+        SET classification = :classification,
+            processedAt = :processedAt,
+            modelVersion = 'manual-v1'
+        WHERE eventId = :eventId
+    """)
+    suspend fun updateClassification(
+        eventId: String,
+        classification: String,
+        processedAt: Long,
+    )
+
     @Query("""
         SELECT e.*, d.classification, d.priority, d.summary, d.processedAt, d.modelVersion
         FROM events e

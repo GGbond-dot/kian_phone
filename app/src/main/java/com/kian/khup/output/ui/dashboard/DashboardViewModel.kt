@@ -5,10 +5,12 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.kian.khup.collection.notification.NotificationPermissions
 import com.kian.khup.collection.usage.AppUsageSummary
+import com.kian.khup.core.data.db.entities.ActionLog
 import com.kian.khup.core.data.db.entities.DailyTask
 import com.kian.khup.core.data.db.entities.Event
 import com.kian.khup.core.data.repository.DailyTaskRepository
 import com.kian.khup.core.data.repository.EventRepository
+import com.kian.khup.core.data.repository.InterventionRepository
 import com.kian.khup.core.data.repository.UsageStatsRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -26,6 +28,7 @@ class DashboardViewModel @Inject constructor(
     repository: EventRepository,
     private val usageStatsRepository: UsageStatsRepository,
     private val dailyTaskRepository: DailyTaskRepository,
+    private val interventionRepository: InterventionRepository,
 ) : ViewModel() {
 
     val recentEvents: StateFlow<List<Event>> = repository.observeRecent(limit = 100)
@@ -52,6 +55,13 @@ class DashboardViewModel @Inject constructor(
             initialValue = emptyList(),
         )
 
+    val todayActions: StateFlow<List<ActionLog>> = interventionRepository.observeTodayActions()
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = emptyList(),
+        )
+
     init {
         viewModelScope.launch {
             usageStatsRepository.observeTodayTopApps()
@@ -65,7 +75,10 @@ class DashboardViewModel @Inject constructor(
     fun refreshUsageStats() {
         viewModelScope.launch {
             val hasPermission = NotificationPermissions.hasUsageAccess(context)
-            if (hasPermission) usageStatsRepository.syncToday()
+            if (hasPermission) {
+                usageStatsRepository.syncToday()
+                interventionRepository.evaluateToday()
+            }
             _usageUiState.value = _usageUiState.value.copy(
                 hasPermission = hasPermission,
                 topApps = if (hasPermission) _usageUiState.value.topApps else emptyList(),

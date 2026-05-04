@@ -37,5 +37,12 @@ object WorkScheduler {
             ExistingPeriodicWorkPolicy.KEEP,
             PeriodicWorkRequestBuilder<UsageStatsSyncWorker>(1, TimeUnit.HOURS).build(),
         )
+
+        // 算法 App 干预：每 15 分钟检查抖音/小红书今日用量，超过阈值提醒一次。
+        wm.enqueueUniquePeriodicWork(
+            InterventionCheckWorker.UNIQUE_NAME,
+            ExistingPeriodicWorkPolicy.KEEP,
+            PeriodicWorkRequestBuilder<InterventionCheckWorker>(15, TimeUnit.MINUTES).build(),
+        )
     }
 }
