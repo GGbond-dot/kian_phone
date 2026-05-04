@@ -21,7 +21,7 @@ object DatabaseModule {
         Room.databaseBuilder(context, AppDatabase::class.java, "khup.db")
             // 开发期 schema 还在变，destructive migration 简单粗暴。
             // TODO: 1.0 发布前补正常的 Migration 链。
-            .fallbackToDestructiveMigration(dropAllTables = true)
+            .fallbackToDestructiveMigration()
             .build()
 
     @Provides

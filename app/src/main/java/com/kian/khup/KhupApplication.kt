@@ -3,6 +3,7 @@ package com.kian.khup
 import android.app.Application
 import androidx.hilt.work.HiltWorkerFactory
 import androidx.work.Configuration
+import com.kian.khup.common.work.WorkScheduler
 import dagger.hilt.android.HiltAndroidApp
 import javax.inject.Inject
 
@@ -20,4 +21,10 @@ class KhupApplication : Application(), Configuration.Provider {
             .setWorkerFactory(workerFactory)
             .setMinimumLoggingLevel(android.util.Log.INFO)
             .build()
+
+    override fun onCreate() {
+        super.onCreate()
+        android.util.Log.i("KHUP/App", "onCreate: scheduling periodic work")
+        WorkScheduler.scheduleAll(this)
+    }
 }
