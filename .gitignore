@@ -23,6 +23,12 @@ release.keystore.properties
 # OS
 .DS_Store
 
+# Python / local tooling
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+
 # Memory dir 是 Claude 的，不进 Git
 /memory/
 

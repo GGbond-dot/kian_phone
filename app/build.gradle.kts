@@ -51,6 +51,10 @@ android {
         buildConfig = true
     }
 
+    androidResources {
+        noCompress += setOf("task", "litertlm", "mnn", "weight", "bin", "json")
+    }
+
     packaging {
         resources {
             excludes += setOf(
@@ -114,4 +118,7 @@ dependencies {
     implementation(libs.ktor.client.okhttp)
     implementation(libs.ktor.client.content.negotiation)
     implementation(libs.ktor.serialization.json)
+
+    // 端侧 LLM：LiteRT-LM 跑 Gemma 4 E4B .litertlm 模型。
+    implementation(libs.litertlm.android)
 }

@@ -33,22 +33,45 @@ class UsageStatsCollector @Inject constructor(
             set(Calendar.MILLISECOND, 0)
         }.timeInMillis
 
-        return manager.queryUsageStats(
-            UsageStatsManager.INTERVAL_DAILY,
-            startOfDay,
-            now,
-        )
-            .orEmpty()
-            .asSequence()
-            .filter { it.totalTimeInForeground > 0 }
-            .groupBy { it.packageName }
-            .map { (packageName, stats) ->
+        // queryUsageStats(INTERVAL_DAILY) 返回 bucket 全段累计,会跨天泄漏。
+        // 这里用 queryEvents 自己配对 RESUMED/PAUSED,严格落在 [startOfDay, now]。
+        val events = manager.queryEvents(startOfDay, now) ?: return emptyList()
+        val event = UsageEvents.Event()
+        val foregroundStart = HashMap<String, Long>()
+        val totals = HashMap<String, Long>()
+
+        while (events.hasNextEvent()) {
+            events.getNextEvent(event)
+            val pkg = event.packageName ?: continue
+            when (event.eventType) {
+                UsageEvents.Event.ACTIVITY_RESUMED,
+                UsageEvents.Event.MOVE_TO_FOREGROUND -> {
+                    foregroundStart[pkg] = event.timeStamp.coerceAtLeast(startOfDay)
+                }
+                UsageEvents.Event.ACTIVITY_PAUSED,
+                UsageEvents.Event.MOVE_TO_BACKGROUND -> {
+                    val start = foregroundStart.remove(pkg) ?: continue
+                    val delta = (event.timeStamp - start).coerceAtLeast(0L)
+                    totals[pkg] = (totals[pkg] ?: 0L) + delta
+                }
+            }
+        }
+        // 仍在前台、还没收到 PAUSED 的会话,按 now 截断
+        foregroundStart.forEach { (pkg, start) ->
+            val delta = (now - start).coerceAtLeast(0L)
+            totals[pkg] = (totals[pkg] ?: 0L) + delta
+        }
+
+        val maxPerApp = now - startOfDay
+        return totals.asSequence()
+            .map { (pkg, ms) ->
                 AppUsageSummary(
-                    packageName = packageName,
-                    appLabel = resolveAppLabel(packageName),
-                    foregroundMs = stats.sumOf { it.totalTimeInForeground },
+                    packageName = pkg,
+                    appLabel = resolveAppLabel(pkg),
+                    foregroundMs = ms.coerceAtMost(maxPerApp),
                 )
             }
+            .filter { it.foregroundMs > 0 }
             .sortedByDescending { it.foregroundMs }
             .take(limit)
             .toList()

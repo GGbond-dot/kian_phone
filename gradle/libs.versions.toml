@@ -1,11 +1,11 @@
 # 统一管理所有依赖版本（Gradle 版本目录）。后续升级只需改这里。
 [versions]
 agp = "8.7.3"
-kotlin = "2.1.0"
-ksp = "2.1.0-1.0.29"
-hilt = "2.53"
+kotlin = "2.2.20"
+ksp = "2.2.20-2.0.4"
+hilt = "2.57.2"
 hiltExt = "1.2.0"      # androidx.hilt（hilt-work、hilt-navigation-compose）
-room = "2.6.1"
+room = "2.7.2"
 composeBom = "2024.12.01"
 activityCompose = "1.9.3"
 lifecycle = "2.8.7"
@@ -16,6 +16,7 @@ datastore = "1.1.1"
 serialization = "1.7.3"
 ktor = "3.0.2"
 coreKtx = "1.15.0"
+litertlm = "0.11.0"
 
 [libraries]
 androidx-core-ktx = { module = "androidx.core:core-ktx", version.ref = "coreKtx" }
@@ -56,6 +57,8 @@ ktor-client-core = { module = "io.ktor:ktor-client-core", version.ref = "ktor" }
 ktor-client-okhttp = { module = "io.ktor:ktor-client-okhttp", version.ref = "ktor" }
 ktor-client-content-negotiation = { module = "io.ktor:ktor-client-content-negotiation", version.ref = "ktor" }
 ktor-serialization-json = { module = "io.ktor:ktor-serialization-kotlinx-json", version.ref = "ktor" }
+
+litertlm-android = { module = "com.google.ai.edge.litertlm:litertlm-android", version.ref = "litertlm" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

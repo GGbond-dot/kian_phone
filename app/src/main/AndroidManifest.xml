@@ -50,6 +50,10 @@
         android:theme="@style/Theme.KHUP"
         tools:targetApi="35">
 
+        <!-- LiteRT-LM GPU 后端可选依赖 -->
+        <uses-native-library android:name="libvndksupport.so" android:required="false"/>
+        <uses-native-library android:name="libOpenCL.so" android:required="false"/>
+
         <activity
             android:name=".MainActivity"
             android:exported="true"

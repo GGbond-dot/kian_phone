@@ -3,6 +3,7 @@ package com.kian.khup.output.ui
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Analytics
+import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.Inbox
 import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material.icons.outlined.Settings
@@ -20,6 +21,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import com.kian.khup.output.ui.ai.AiChatScreen
 import com.kian.khup.output.ui.analytics.AnalyticsScreen
 import com.kian.khup.output.ui.dashboard.DashboardScreen
 import com.kian.khup.output.ui.messages.MessagesScreen
@@ -29,6 +31,7 @@ private enum class Tab(val route: String, val label: String, val icon: ImageVect
     Dashboard("dashboard", "首页", Icons.Outlined.Notifications),
     Messages("messages", "消息", Icons.Outlined.Inbox),
     Analytics("analytics", "用机", Icons.Outlined.Analytics),
+    Ai("ai", "AI", Icons.Outlined.AutoAwesome),
     Settings("settings", "设置", Icons.Outlined.Settings),
 }
 
@@ -70,6 +73,7 @@ fun MainScreen() {
             composable(Tab.Dashboard.route) { DashboardScreen() }
             composable(Tab.Messages.route)  { MessagesScreen() }
             composable(Tab.Analytics.route) { AnalyticsScreen() }
+            composable(Tab.Ai.route)        { AiChatScreen() }
             composable(Tab.Settings.route)  { SettingsScreen() }
         }
     }

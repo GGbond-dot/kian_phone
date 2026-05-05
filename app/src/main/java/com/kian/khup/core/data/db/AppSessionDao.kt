@@ -58,4 +58,7 @@ interface AppSessionDao {
           AND packageName IN (:packageNames)
     """)
     suspend fun getUsageForPackagesSince(packageNames: List<String>, sinceMs: Long): Long
+
+    @Query("DELETE FROM app_sessions WHERE COALESCE(durationMs, 0) > :maxDurationMs")
+    suspend fun deleteSessionsExceedingDuration(maxDurationMs: Long): Int
 }

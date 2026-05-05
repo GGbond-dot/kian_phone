@@ -11,6 +11,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Add
+import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.Remove
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -18,7 +19,9 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -26,6 +29,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.Lifecycle
@@ -35,6 +40,9 @@ import androidx.compose.ui.Alignment
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.kian.khup.collection.notification.NotificationPermissions
+import com.kian.khup.core.ai.AiProviderMode
+import com.kian.khup.core.ai.AiSettings
+import com.kian.khup.core.ai.LlmModelState
 import com.kian.khup.core.data.repository.InterventionSettings
 
 /**
@@ -46,6 +54,8 @@ fun SettingsScreen(viewModel: SettingsViewModel = hiltViewModel()) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val interventionSettings by viewModel.interventionSettings.collectAsStateWithLifecycle()
+    val aiSettings by viewModel.aiSettings.collectAsStateWithLifecycle()
+    val aiModelState by viewModel.aiModelState.collectAsStateWithLifecycle()
 
     // 用户从设置页回来时刷新权限状态
     var refreshTick by remember { mutableStateOf(0) }
@@ -136,6 +146,139 @@ fun SettingsScreen(viewModel: SettingsViewModel = hiltViewModel()) {
             settings = interventionSettings,
             onDouyinChange = viewModel::setDouyinLimit,
             onXiaohongshuChange = viewModel::setXiaohongshuLimit,
+        )
+
+        AiChannelCard(
+            settings = aiSettings,
+            modelState = aiModelState,
+            onProviderModeChange = viewModel::setProviderMode,
+            onSaveApi = { url, model, key ->
+                viewModel.setApiBaseUrl(url)
+                viewModel.setApiModel(model)
+                viewModel.setApiKey(key)
+            },
+            onRefreshModel = viewModel::refreshAiModelState,
+        )
+    }
+}
+
+@Composable
+private fun AiChannelCard(
+    settings: AiSettings,
+    modelState: LlmModelState,
+    onProviderModeChange: (AiProviderMode) -> Unit,
+    onSaveApi: (String, String, String) -> Unit,
+    onRefreshModel: () -> Unit,
+) {
+    var baseUrl by remember(settings.apiBaseUrl) { mutableStateOf(settings.apiBaseUrl) }
+    var model by remember(settings.apiModel) { mutableStateOf(settings.apiModel) }
+    var key by remember(settings.apiKey) { mutableStateOf(settings.apiKey) }
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+    ) {
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text("AI 通道", style = MaterialTheme.typography.titleMedium)
+                IconButton(onClick = onRefreshModel) {
+                    Icon(Icons.Outlined.Refresh, contentDescription = "刷新模型状态")
+                }
+            }
+
+            Text("本地模型", style = MaterialTheme.typography.titleSmall)
+            Text(
+                if (modelState.isReady) "✓ 已找到:${modelState.foundPath}" else "✗ 未找到",
+                style = MaterialTheme.typography.bodySmall,
+                color = if (modelState.isReady) {
+                    MaterialTheme.colorScheme.primary
+                } else {
+                    MaterialTheme.colorScheme.error
+                },
+            )
+            if (!modelState.isReady) {
+                Text(
+                    "把模型 push 到下列任一路径之后,点上方刷新:",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                modelState.checkedPaths.forEach { path ->
+                    Text(
+                        "· $path",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+
+            Text("调用模式", style = MaterialTheme.typography.titleSmall)
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                ProviderModeButton("本地优先", AiProviderMode.LocalFirst, settings.providerMode, onProviderModeChange)
+                ProviderModeButton("仅本地", AiProviderMode.LocalOnly, settings.providerMode, onProviderModeChange)
+                ProviderModeButton("仅 API", AiProviderMode.ApiOnly, settings.providerMode, onProviderModeChange)
+            }
+
+            Text(
+                if (settings.hasApiConfig) "✓ API 已配置" else "API 未配置",
+                style = MaterialTheme.typography.labelMedium,
+                color = if (settings.hasApiConfig) {
+                    MaterialTheme.colorScheme.primary
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                },
+            )
+            OutlinedTextField(
+                value = baseUrl,
+                onValueChange = { baseUrl = it },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                label = { Text("API Base URL") },
+            )
+            OutlinedTextField(
+                value = model,
+                onValueChange = { model = it },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                label = { Text("Model") },
+            )
+            OutlinedTextField(
+                value = key,
+                onValueChange = { key = it },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                visualTransformation = PasswordVisualTransformation(),
+                label = { Text("API Key") },
+            )
+            TextButton(
+                onClick = { onSaveApi(baseUrl, model, key) },
+                modifier = Modifier.align(Alignment.End),
+            ) {
+                Text("保存 API 配置")
+            }
+        }
+    }
+}
+
+@Composable
+private fun ProviderModeButton(
+    label: String,
+    mode: AiProviderMode,
+    current: AiProviderMode,
+    onModeChange: (AiProviderMode) -> Unit,
+) {
+    TextButton(onClick = { onModeChange(mode) }) {
+        Text(
+            label,
+            fontWeight = if (mode == current) FontWeight.Bold else FontWeight.Normal,
+            color = if (mode == current) {
+                MaterialTheme.colorScheme.primary
+            } else {
+                MaterialTheme.colorScheme.onSurfaceVariant
+            },
         )
     }
 }
