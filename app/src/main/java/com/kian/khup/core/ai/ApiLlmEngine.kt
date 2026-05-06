@@ -38,13 +38,14 @@ class ApiLlmEngine @Inject constructor(
         }
     }
 
-    suspend fun generate(prompt: String): Result<String> = withContext(Dispatchers.IO) {
+    suspend fun generate(prompt: String, tier: TaskTier = TaskTier.Auto): Result<String> = withContext(Dispatchers.IO) {
         runCatching {
             val settings = settingsRepository.currentSettings()
             require(settings.hasApiConfig) {
                 "API 配置不完整：需要 Base URL、API Key、Model。"
             }
 
+            val redacted = PromptRedactor.redact(prompt)
             val url = "${settings.apiBaseUrl.trimEnd('/')}/chat/completions"
             val requestBody = buildJsonObject {
                 put("model", settings.apiModel)
@@ -52,14 +53,15 @@ class ApiLlmEngine @Inject constructor(
                     add(
                         buildJsonObject {
                             put("role", "user")
-                            put("content", prompt)
+                            put("content", redacted)
                         }
                     )
                 })
                 put("temperature", 0.7)
             }.toString()
 
-            Log.i(TAG, "api chat started, url=$url, model=${settings.apiModel}")
+            val redactionDelta = prompt.length - redacted.length
+            Log.i(TAG, "api chat started, url=$url, model=${settings.apiModel}, redaction_delta=$redactionDelta")
             val responseText: String = client.post(url) {
                 bearerAuth(settings.apiKey)
                 header(HttpHeaders.ContentType, ContentType.Application.Json.toString())

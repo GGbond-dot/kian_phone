@@ -7,10 +7,13 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 import com.kian.khup.core.data.db.ActionLogDao
 import com.kian.khup.core.data.db.AppDatabase
 import com.kian.khup.core.data.db.AppSessionDao
+import com.kian.khup.core.data.db.ChatMessageDao
 import com.kian.khup.core.data.db.ClassificationFeedbackDao
+import com.kian.khup.core.data.db.DailyReviewDao
 import com.kian.khup.core.data.db.DailyTaskDao
 import com.kian.khup.core.data.db.DerivedResultDao
 import com.kian.khup.core.data.db.EventDao
+import com.kian.khup.core.data.db.HourlySummaryDao
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -26,7 +29,7 @@ object DatabaseModule {
     @Singleton
     fun provideDatabase(@ApplicationContext context: Context): AppDatabase =
         Room.databaseBuilder(context, AppDatabase::class.java, "khup.db")
-            .addMigrations(MIGRATION_2_3, MIGRATION_3_4)
+            .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
             // 开发期 schema 还在变，destructive migration 简单粗暴。
             // TODO: 1.0 发布前补正常的 Migration 链。
             .fallbackToDestructiveMigration()
@@ -50,6 +53,15 @@ object DatabaseModule {
 
     @Provides
     fun provideActionLogDao(db: AppDatabase): ActionLogDao = db.actionLogDao()
+
+    @Provides
+    fun provideChatMessageDao(db: AppDatabase): ChatMessageDao = db.chatMessageDao()
+
+    @Provides
+    fun provideHourlySummaryDao(db: AppDatabase): HourlySummaryDao = db.hourlySummaryDao()
+
+    @Provides
+    fun provideDailyReviewDao(db: AppDatabase): DailyReviewDao = db.dailyReviewDao()
 
     private val MIGRATION_2_3 = object : Migration(2, 3) {
         override fun migrate(db: SupportSQLiteDatabase) {
@@ -89,6 +101,58 @@ object DatabaseModule {
             )
             db.execSQL(
                 "CREATE INDEX IF NOT EXISTS index_classification_feedback_createdAt ON classification_feedback(createdAt)"
+            )
+        }
+    }
+
+    private val MIGRATION_4_5 = object : Migration(4, 5) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL(
+                """
+                CREATE TABLE IF NOT EXISTS chat_message (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                    role TEXT NOT NULL,
+                    text TEXT NOT NULL,
+                    providerTier TEXT,
+                    timestamp INTEGER NOT NULL
+                )
+                """.trimIndent()
+            )
+            db.execSQL("CREATE INDEX IF NOT EXISTS index_chat_message_timestamp ON chat_message(timestamp)")
+
+            db.execSQL(
+                """
+                CREATE TABLE IF NOT EXISTS hourly_summary (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                    windowStartMs INTEGER NOT NULL,
+                    windowEndMs INTEGER NOT NULL,
+                    summary TEXT NOT NULL,
+                    eventCount INTEGER NOT NULL,
+                    topPackages TEXT NOT NULL,
+                    importance INTEGER NOT NULL,
+                    createdAt INTEGER NOT NULL,
+                    modelVersion TEXT NOT NULL
+                )
+                """.trimIndent()
+            )
+            db.execSQL(
+                "CREATE UNIQUE INDEX IF NOT EXISTS index_hourly_summary_windowStartMs ON hourly_summary(windowStartMs)"
+            )
+
+            db.execSQL(
+                """
+                CREATE TABLE IF NOT EXISTS daily_review (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                    dayStartMs INTEGER NOT NULL,
+                    summary TEXT NOT NULL,
+                    highlights TEXT NOT NULL,
+                    createdAt INTEGER NOT NULL,
+                    modelVersion TEXT NOT NULL
+                )
+                """.trimIndent()
+            )
+            db.execSQL(
+                "CREATE UNIQUE INDEX IF NOT EXISTS index_daily_review_dayStartMs ON daily_review(dayStartMs)"
             )
         }
     }

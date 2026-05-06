@@ -43,6 +43,7 @@ import com.kian.khup.collection.usage.AppUsageSummary
 import com.kian.khup.core.data.db.entities.ActionLog
 import com.kian.khup.core.data.db.entities.DailyTask
 import com.kian.khup.core.data.db.entities.Event
+import com.kian.khup.core.data.db.entities.HourlySummary
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale

@@ -90,15 +90,20 @@ class UsageStatsRepository @Inject constructor(
             set(Calendar.MILLISECOND, 0)
         }.timeInMillis
 
-    /** 每天 0 点重新发射当天的 startOfDay,让 Flow 自动跨天。 */
+    /**
+     * 每分钟回看一次当天 startOfDay,变了才 emit。
+     * 不能用 delay(到午夜):Android 上 kotlinx delay 走 uptimeMillis,Doze 深睡期间停摆,
+     * 导致跨夜后 Flow 不重新发射,UI 看起来"要重启 app 才刷新"。
+     */
     private fun todayStartFlow(): Flow<Long> = flow {
+        var lastEmitted = -1L
         while (true) {
             val start = startOfTodayMs()
-            emit(start)
-            val nextMidnight = start + TimeUnit.DAYS.toMillis(1)
-            val waitMs = (nextMidnight - System.currentTimeMillis())
-                .coerceIn(60_000L, TimeUnit.HOURS.toMillis(25))
-            delay(waitMs)
+            if (start != lastEmitted) {
+                emit(start)
+                lastEmitted = start
+            }
+            delay(TimeUnit.MINUTES.toMillis(1))
         }
     }
 }

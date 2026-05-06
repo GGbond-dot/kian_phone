@@ -36,6 +36,6 @@ class RetentionWorker @AssistedInject constructor(
     companion object {
         private const val TAG = "KHUP/Retention"
         const val UNIQUE_NAME = "khup.retention"
-        const val RAW_EVENT_RETENTION_DAYS = 7L
+        const val RAW_EVENT_RETENTION_DAYS = 3L
     }
 }

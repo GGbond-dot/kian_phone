@@ -5,9 +5,11 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.kian.khup.collection.notification.NotificationPermissions
 import com.kian.khup.collection.usage.AppUsageSummary
+import com.kian.khup.core.data.db.HourlySummaryDao
 import com.kian.khup.core.data.db.entities.ActionLog
 import com.kian.khup.core.data.db.entities.DailyTask
 import com.kian.khup.core.data.db.entities.Event
+import com.kian.khup.core.data.db.entities.HourlySummary
 import com.kian.khup.core.data.repository.DailyTaskRepository
 import com.kian.khup.core.data.repository.EventRepository
 import com.kian.khup.core.data.repository.InterventionRepository
@@ -29,7 +31,15 @@ class DashboardViewModel @Inject constructor(
     private val usageStatsRepository: UsageStatsRepository,
     private val dailyTaskRepository: DailyTaskRepository,
     private val interventionRepository: InterventionRepository,
+    hourlySummaryDao: HourlySummaryDao,
 ) : ViewModel() {
+
+    val latestHourlySummary: StateFlow<HourlySummary?> = hourlySummaryDao.observeLatest()
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = null,
+        )
 
     val recentEvents: StateFlow<List<Event>> = repository.observeRecent(limit = 100)
         .stateIn(

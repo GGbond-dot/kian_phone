@@ -41,4 +41,11 @@ interface EventDao {
 
     @Query("DELETE FROM events WHERE timestamp < :beforeMs")
     suspend fun deleteOlderThan(beforeMs: Long): Int
+
+    @Query("""
+        SELECT * FROM events
+        WHERE type = :type AND timestamp >= :startMs AND timestamp < :endMs
+        ORDER BY timestamp ASC
+    """)
+    suspend fun getInWindow(type: EventType, startMs: Long, endMs: Long): List<Event>
 }

@@ -41,7 +41,7 @@ class LiteRtLmLlmEngine @Inject constructor(
         logLabel = "smoke test",
     )
 
-    override suspend fun generate(prompt: String): Result<String> =
+    override suspend fun generate(prompt: String, tier: TaskTier): Result<String> =
         generateInternal(prompt, logLabel = "chat")
 
     private suspend fun generateInternal(prompt: String, logLabel: String): Result<String> =

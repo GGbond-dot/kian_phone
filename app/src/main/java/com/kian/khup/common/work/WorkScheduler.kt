@@ -44,5 +44,12 @@ object WorkScheduler {
             ExistingPeriodicWorkPolicy.KEEP,
             PeriodicWorkRequestBuilder<InterventionCheckWorker>(15, TimeUnit.MINUTES).build(),
         )
+
+        // 每小时通知摘要：本地 Light，过去 1 小时通知聚合，重要项推送。
+        wm.enqueueUniquePeriodicWork(
+            HourlySummaryWorker.UNIQUE_NAME,
+            ExistingPeriodicWorkPolicy.KEEP,
+            PeriodicWorkRequestBuilder<HourlySummaryWorker>(1, TimeUnit.HOURS).build(),
+        )
     }
 }

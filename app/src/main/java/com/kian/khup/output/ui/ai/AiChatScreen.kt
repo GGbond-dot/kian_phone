@@ -34,6 +34,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.kian.khup.core.ai.AiProviderMode
 
 @Composable
 fun AiChatScreen(viewModel: AiChatViewModel = hiltViewModel()) {
@@ -59,15 +60,25 @@ fun AiChatScreen(viewModel: AiChatViewModel = hiltViewModel()) {
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Column {
-                Text("本地 AI", style = MaterialTheme.typography.headlineSmall)
+                Text("kian-ai-chat", style = MaterialTheme.typography.headlineSmall)
+                val localReady = uiState.modelState.isReady
+                val apiReady = uiState.settings.hasApiConfig
+                val (subtitle, ok) = when (uiState.settings.providerMode) {
+                    AiProviderMode.ApiOnly ->
+                        (if (apiReady) "API 通道:已配置" else "API 通道:未配置(去 Settings 配置)") to apiReady
+                    AiProviderMode.LocalOnly ->
+                        (if (localReady) "本地模型:就绪" else "本地模型:未找到(去 Settings 配置)") to localReady
+                    AiProviderMode.LocalFirst -> when {
+                        localReady && apiReady -> "本地就绪 · API 兜底" to true
+                        localReady -> "本地就绪" to true
+                        apiReady -> "本地未就绪 · 走 API" to true
+                        else -> "未配置(去 Settings 配置)" to false
+                    }
+                }
                 Text(
-                    if (uiState.modelState.isReady) "模型就绪" else "未找到模型(去 Settings 配置)",
+                    subtitle,
                     style = MaterialTheme.typography.labelLarge,
-                    color = if (uiState.modelState.isReady) {
-                        MaterialTheme.colorScheme.primary
-                    } else {
-                        MaterialTheme.colorScheme.error
-                    },
+                    color = if (ok) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
                 )
             }
             Row {
@@ -139,7 +150,7 @@ fun AiChatScreen(viewModel: AiChatViewModel = hiltViewModel()) {
                 enabled = !uiState.isGenerating,
                 minLines = 1,
                 maxLines = 4,
-                placeholder = { Text("问本地模型...") },
+                placeholder = { Text("问 kian-ai-chat...") },
             )
             IconButton(
                 onClick = {
