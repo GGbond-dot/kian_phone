@@ -14,6 +14,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
 
@@ -22,11 +23,14 @@ class UsageStatsRepository @Inject constructor(
     private val appSessionDao: AppSessionDao,
     private val usageStatsCollector: UsageStatsCollector,
 ) {
-    @OptIn(ExperimentalCoroutinesApi::class)
     fun observeTodayTotal(): Flow<Long> =
-        todayStartFlow().flatMapLatest { sinceMs ->
-            appSessionDao.observeTotalUsageSince(sinceMs)
-        }
+        todayMinuteFlow()
+            .map { todayStart ->
+                val now = System.currentTimeMillis()
+                usageStatsCollector.getScreenInteractiveMs(todayStart, now)
+                    .coerceAtMost(now - todayStart)
+            }
+            .flowOn(Dispatchers.IO)
 
     @OptIn(ExperimentalCoroutinesApi::class)
     fun observeTodayTopApps(limit: Int = 5): Flow<List<AppUsageSummary>> =
@@ -43,22 +47,23 @@ class UsageStatsRepository @Inject constructor(
                 }
         }
 
-    @OptIn(ExperimentalCoroutinesApi::class)
     fun observeDailyTotals(days: Int = 7): Flow<List<DailyUsageSummary>> =
-        todayStartFlow().flatMapLatest { todayStart ->
-            val firstDayStart = todayStart - TimeUnit.DAYS.toMillis((days - 1).toLong())
-            val dayStarts = (0 until days).map { firstDayStart + TimeUnit.DAYS.toMillis(it.toLong()) }
-            appSessionDao.observeDailyUsageSince(firstDayStart)
-                .map { rows ->
-                    val byDay = rows.associateBy { it.dayStartMs }
-                    dayStarts.map { dayStart ->
-                        DailyUsageSummary(
-                            dayStartMs = dayStart,
-                            foregroundMs = byDay[dayStart]?.foregroundMs ?: 0L,
-                        )
-                    }
+        todayMinuteFlow()
+            .map { todayStart ->
+                val firstDayStart = todayStart - TimeUnit.DAYS.toMillis((days - 1).toLong())
+                val dayStarts = (0 until days).map { firstDayStart + TimeUnit.DAYS.toMillis(it.toLong()) }
+                val now = System.currentTimeMillis()
+                dayStarts.map { dayStart ->
+                    val dayEnd = (dayStart + TimeUnit.DAYS.toMillis(1)).coerceAtMost(now)
+                    val maxForDay = (dayEnd - dayStart).coerceAtLeast(0L)
+                    DailyUsageSummary(
+                        dayStartMs = dayStart,
+                        foregroundMs = usageStatsCollector.getScreenInteractiveMs(dayStart, dayEnd)
+                            .coerceAtMost(maxForDay),
+                    )
                 }
-        }
+            }
+            .flowOn(Dispatchers.IO)
 
     suspend fun syncToday(): Int = withContext(Dispatchers.IO) {
         val startOfDay = startOfTodayMs()
@@ -77,9 +82,9 @@ class UsageStatsRepository @Inject constructor(
         sessions.size
     }
 
-    /** 一次性清掉历史脏数据(durationMs > 25h 的行,留 1h 缓冲)。 */
+    /** 一次性清掉历史脏数据(durationMs > 24h 的行)。 */
     suspend fun cleanupAnomalousSessions(): Int = withContext(Dispatchers.IO) {
-        appSessionDao.deleteSessionsExceedingDuration(TimeUnit.HOURS.toMillis(25))
+        appSessionDao.deleteSessionsExceedingDuration(TimeUnit.DAYS.toMillis(1))
     }
 
     private fun startOfTodayMs(): Long =
@@ -103,6 +108,13 @@ class UsageStatsRepository @Inject constructor(
                 emit(start)
                 lastEmitted = start
             }
+            delay(TimeUnit.MINUTES.toMillis(1))
+        }
+    }
+
+    private fun todayMinuteFlow(): Flow<Long> = flow {
+        while (true) {
+            emit(startOfTodayMs())
             delay(TimeUnit.MINUTES.toMillis(1))
         }
     }

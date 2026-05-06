@@ -55,6 +55,7 @@ fun DashboardScreen(viewModel: DashboardViewModel = hiltViewModel()) {
     val todayTasks by viewModel.todayTasks.collectAsStateWithLifecycle()
     val overdueTasks by viewModel.overdueTasks.collectAsStateWithLifecycle()
     val todayActions by viewModel.todayActions.collectAsStateWithLifecycle()
+    val latestHourlySummary by viewModel.latestHourlySummary.collectAsStateWithLifecycle()
     val lifecycleOwner = LocalLifecycleOwner.current
 
     DisposableEffect(lifecycleOwner) {
@@ -71,6 +72,7 @@ fun DashboardScreen(viewModel: DashboardViewModel = hiltViewModel()) {
         todayTasks = todayTasks,
         overdueTasks = overdueTasks,
         todayActions = todayActions,
+        latestHourlySummary = latestHourlySummary,
         onAddTask = viewModel::addTask,
         onTaskCheckedChange = viewModel::setTaskDone,
         onDeleteTask = viewModel::deleteTask,
@@ -84,6 +86,7 @@ private fun DashboardContent(
     todayTasks: List<DailyTask>,
     overdueTasks: List<DailyTask>,
     todayActions: List<ActionLog>,
+    latestHourlySummary: HourlySummary?,
     onAddTask: (String) -> Unit,
     onTaskCheckedChange: (Long, Boolean) -> Unit,
     onDeleteTask: (Long) -> Unit,
@@ -93,6 +96,9 @@ private fun DashboardContent(
         contentPadding = PaddingValues(vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
+        item {
+            HourlySummaryCard(summary = latestHourlySummary)
+        }
         item {
             DailyTasksCard(
                 tasks = todayTasks,
@@ -121,6 +127,46 @@ private fun DashboardContent(
             }
         } else {
             items(events, key = { it.eventId }) { EventCard(it) }
+        }
+    }
+}
+
+@Composable
+private fun HourlySummaryCard(summary: HourlySummary?) {
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text("最近 1 小时", style = MaterialTheme.typography.titleMedium)
+                summary?.let {
+                    Text(
+                        importanceLabel(it.importance),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = importanceColor(it.importance),
+                    )
+                }
+            }
+
+            if (summary == null) {
+                Text(
+                    "还没有生成通知摘要。",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            } else {
+                Text(
+                    text = summary.summary,
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                Text(
+                    text = "${summary.eventCount} 条通知 · ${formatHourMinute(summary.windowStartMs)}-${formatHourMinute(summary.windowEndMs)}",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
         }
     }
 }
@@ -390,8 +436,27 @@ private fun EventCard(event: Event) {
 
 private val timeFmt = SimpleDateFormat("MM-dd HH:mm:ss", Locale.getDefault())
 private val dayFmt = SimpleDateFormat("MM-dd", Locale.getDefault())
+private val hourMinuteFmt = SimpleDateFormat("HH:mm", Locale.getDefault())
 private fun formatTime(ts: Long): String = timeFmt.format(Date(ts))
 private fun formatDay(ts: Long): String = dayFmt.format(Date(ts))
+private fun formatHourMinute(ts: Long): String = hourMinuteFmt.format(Date(ts))
+
+private fun importanceLabel(importance: Int): String =
+    when (importance) {
+        0 -> "普通"
+        1 -> "一般"
+        2 -> "重要"
+        else -> "紧急"
+    }
+
+@Composable
+private fun importanceColor(importance: Int) =
+    when (importance) {
+        0 -> MaterialTheme.colorScheme.onSurfaceVariant
+        1 -> MaterialTheme.colorScheme.primary
+        2 -> MaterialTheme.colorScheme.tertiary
+        else -> MaterialTheme.colorScheme.error
+    }
 
 private fun actionRuleLabel(ruleId: String): String =
     when (ruleId) {

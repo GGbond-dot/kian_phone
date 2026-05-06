@@ -34,32 +34,38 @@ class UsageStatsCollector @Inject constructor(
         }.timeInMillis
 
         // queryUsageStats(INTERVAL_DAILY) 返回 bucket 全段累计,会跨天泄漏。
-        // 这里用 queryEvents 自己配对 RESUMED/PAUSED,严格落在 [startOfDay, now]。
-        val events = manager.queryEvents(startOfDay, now) ?: return emptyList()
+        // 这里用 queryEvents,只统计屏幕点亮期间的当前前台 App。
+        val events = manager.queryEvents(startOfDay - ONE_DAY_MS, now) ?: return emptyList()
         val event = UsageEvents.Event()
-        val foregroundStart = HashMap<String, Long>()
         val totals = HashMap<String, Long>()
+        var screenOn = false
+        var currentPackage: String? = null
+        var lastTs = startOfDay
 
         while (events.hasNextEvent()) {
             events.getNextEvent(event)
-            val pkg = event.packageName ?: continue
-            when (event.eventType) {
-                UsageEvents.Event.ACTIVITY_RESUMED,
-                UsageEvents.Event.MOVE_TO_FOREGROUND -> {
-                    foregroundStart[pkg] = event.timeStamp.coerceAtLeast(startOfDay)
+            val ts = event.timeStamp.coerceIn(startOfDay - ONE_DAY_MS, now)
+            if (ts >= startOfDay) {
+                if (screenOn && currentPackage != null && ts > lastTs) {
+                    totals[currentPackage] = (totals[currentPackage] ?: 0L) + (ts - lastTs)
                 }
+                lastTs = ts
+            }
+            val pkg = event.packageName
+            when (event.eventType) {
+                UsageEvents.Event.SCREEN_INTERACTIVE -> screenOn = true
+                UsageEvents.Event.SCREEN_NON_INTERACTIVE -> screenOn = false
+                UsageEvents.Event.ACTIVITY_RESUMED,
+                UsageEvents.Event.MOVE_TO_FOREGROUND -> if (pkg != null) currentPackage = pkg
                 UsageEvents.Event.ACTIVITY_PAUSED,
                 UsageEvents.Event.MOVE_TO_BACKGROUND -> {
-                    val start = foregroundStart.remove(pkg) ?: continue
-                    val delta = (event.timeStamp - start).coerceAtLeast(0L)
-                    totals[pkg] = (totals[pkg] ?: 0L) + delta
+                    if (currentPackage == pkg) currentPackage = null
                 }
             }
         }
-        // 仍在前台、还没收到 PAUSED 的会话,按 now 截断
-        foregroundStart.forEach { (pkg, start) ->
-            val delta = (now - start).coerceAtLeast(0L)
-            totals[pkg] = (totals[pkg] ?: 0L) + delta
+
+        if (screenOn && currentPackage != null && now > lastTs) {
+            totals[currentPackage] = (totals[currentPackage] ?: 0L) + (now - lastTs)
         }
 
         val maxPerApp = now - startOfDay
@@ -75,6 +81,80 @@ class UsageStatsCollector @Inject constructor(
             .sortedByDescending { it.foregroundMs }
             .take(limit)
             .toList()
+    }
+
+    fun getTotalForegroundMs(startMs: Long, endMs: Long): Long {
+        if (endMs <= startMs) return 0L
+        val manager = usageStatsManager ?: return 0L
+        val events = manager.queryEvents(startMs, endMs) ?: return 0L
+        val event = UsageEvents.Event()
+        val activePackages = mutableSetOf<String>()
+        var lastTs = startMs
+        var totalMs = 0L
+
+        while (events.hasNextEvent()) {
+            events.getNextEvent(event)
+            val pkg = event.packageName ?: continue
+            val ts = event.timeStamp.coerceIn(startMs, endMs)
+            if (activePackages.isNotEmpty() && ts > lastTs) {
+                totalMs += ts - lastTs
+            }
+            when (event.eventType) {
+                UsageEvents.Event.ACTIVITY_RESUMED,
+                UsageEvents.Event.MOVE_TO_FOREGROUND -> activePackages.add(pkg)
+                UsageEvents.Event.ACTIVITY_PAUSED,
+                UsageEvents.Event.MOVE_TO_BACKGROUND -> activePackages.remove(pkg)
+            }
+            lastTs = ts
+        }
+
+        if (activePackages.isNotEmpty() && endMs > lastTs) {
+            totalMs += endMs - lastTs
+        }
+        return totalMs.coerceAtMost(endMs - startMs)
+    }
+
+    fun getScreenInteractiveMs(startMs: Long, endMs: Long): Long {
+        if (endMs <= startMs) return 0L
+        val manager = usageStatsManager ?: return 0L
+        val lookbackStart = startMs - ONE_DAY_MS
+        val events = manager.queryEvents(lookbackStart, endMs) ?: return 0L
+        val event = UsageEvents.Event()
+        var screenOn = false
+        var screenOnStart: Long? = null
+        var totalMs = 0L
+
+        while (events.hasNextEvent()) {
+            events.getNextEvent(event)
+            val ts = event.timeStamp.coerceIn(lookbackStart, endMs)
+            when (event.eventType) {
+                UsageEvents.Event.SCREEN_INTERACTIVE -> {
+                    screenOn = true
+                    if (ts >= startMs && screenOnStart == null) {
+                        screenOnStart = ts
+                    }
+                }
+                UsageEvents.Event.SCREEN_NON_INTERACTIVE -> {
+                    if (screenOn) {
+                        screenOnStart?.let { start ->
+                            if (ts > start) totalMs += ts - start
+                        }
+                    }
+                    screenOn = false
+                    screenOnStart = null
+                }
+            }
+
+            if (ts < startMs) {
+                screenOnStart = if (screenOn) startMs else null
+            }
+        }
+
+        if (screenOn) {
+            val start = screenOnStart ?: startMs
+            if (endMs > start) totalMs += endMs - start
+        }
+        return totalMs.coerceAtMost(endMs - startMs)
     }
 
     fun resolveAppLabel(packageName: String): String {
@@ -107,5 +187,9 @@ class UsageStatsCollector @Inject constructor(
         }
 
         return currentPackage
+    }
+
+    private companion object {
+        private const val ONE_DAY_MS = 24L * 60L * 60L * 1000L
     }
 }

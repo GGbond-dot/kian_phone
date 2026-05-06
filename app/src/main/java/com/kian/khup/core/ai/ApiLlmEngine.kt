@@ -16,6 +16,7 @@ import kotlinx.serialization.json.put
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.engine.okhttp.OkHttp
+import io.ktor.client.plugins.HttpTimeout
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.plugins.expectSuccess
 import io.ktor.client.request.bearerAuth
@@ -35,6 +36,11 @@ class ApiLlmEngine @Inject constructor(
         expectSuccess = true
         install(ContentNegotiation) {
             json(json)
+        }
+        install(HttpTimeout) {
+            requestTimeoutMillis = API_TIMEOUT_MS
+            connectTimeoutMillis = API_TIMEOUT_MS
+            socketTimeoutMillis = API_TIMEOUT_MS
         }
     }
 
@@ -90,5 +96,6 @@ class ApiLlmEngine @Inject constructor(
 
     private companion object {
         const val TAG = "KHUP/AI"
+        const val API_TIMEOUT_MS = 30_000L
     }
 }

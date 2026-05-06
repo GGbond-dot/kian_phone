@@ -88,7 +88,7 @@ private fun TodayTotalCard(uiState: AnalyticsUiState) {
                     style = MaterialTheme.typography.headlineMedium,
                 )
                 Text(
-                    text = "来自系统使用情况访问记录",
+                    text = "来自系统屏幕点亮记录",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
