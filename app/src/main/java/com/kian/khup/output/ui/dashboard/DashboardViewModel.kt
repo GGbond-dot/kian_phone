@@ -5,17 +5,25 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.kian.khup.collection.notification.NotificationPermissions
 import com.kian.khup.collection.usage.AppUsageSummary
+import com.kian.khup.core.anomaly.AttentionAnomalyDetector
+import com.kian.khup.core.data.db.AttentionAnomalyDao
+import com.kian.khup.core.data.db.DailyReviewDao
 import com.kian.khup.core.data.db.HourlySummaryDao
+import com.kian.khup.core.data.db.TriggerTagDao
+import com.kian.khup.core.data.db.TriggerTagTotal
 import com.kian.khup.core.data.db.entities.ActionLog
+import com.kian.khup.core.data.db.entities.AttentionAnomaly
+import com.kian.khup.core.data.db.entities.DailyReview
 import com.kian.khup.core.data.db.entities.DailyTask
-import com.kian.khup.core.data.db.entities.Event
 import com.kian.khup.core.data.db.entities.HourlySummary
 import com.kian.khup.core.data.repository.DailyTaskRepository
-import com.kian.khup.core.data.repository.EventRepository
 import com.kian.khup.core.data.repository.InterventionRepository
 import com.kian.khup.core.data.repository.UsageStatsRepository
+import com.kian.khup.core.summary.DailyReviewGenerator
+import com.kian.khup.core.trigger.TriggerTagger
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
+import java.util.Calendar
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -27,11 +35,16 @@ import javax.inject.Inject
 @HiltViewModel
 class DashboardViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
-    repository: EventRepository,
     private val usageStatsRepository: UsageStatsRepository,
     private val dailyTaskRepository: DailyTaskRepository,
     private val interventionRepository: InterventionRepository,
+    private val dailyReviewGenerator: DailyReviewGenerator,
+    private val attentionAnomalyDetector: AttentionAnomalyDetector,
+    private val triggerTagger: TriggerTagger,
     hourlySummaryDao: HourlySummaryDao,
+    dailyReviewDao: DailyReviewDao,
+    attentionAnomalyDao: AttentionAnomalyDao,
+    triggerTagDao: TriggerTagDao,
 ) : ViewModel() {
 
     val latestHourlySummary: StateFlow<HourlySummary?> = hourlySummaryDao.observeLatest()
@@ -41,7 +54,21 @@ class DashboardViewModel @Inject constructor(
             initialValue = null,
         )
 
-    val recentEvents: StateFlow<List<Event>> = repository.observeRecent(limit = 100)
+    val todayReview: StateFlow<DailyReview?> = dailyReviewDao.observeForDay(startOfTodayMs())
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = null,
+        )
+
+    val todayAnomalies: StateFlow<List<AttentionAnomaly>> = attentionAnomalyDao.observeForDay(startOfTodayMs())
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = emptyList(),
+        )
+
+    val todayTriggerTags: StateFlow<List<TriggerTagTotal>> = triggerTagDao.observeTagTotalsForDay(startOfTodayMs())
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5_000),
@@ -50,6 +77,9 @@ class DashboardViewModel @Inject constructor(
 
     private val _usageUiState = MutableStateFlow(UsageUiState())
     val usageUiState: StateFlow<UsageUiState> = _usageUiState.asStateFlow()
+
+    private val _dailyReviewUiState = MutableStateFlow(DailyReviewUiState())
+    val dailyReviewUiState: StateFlow<DailyReviewUiState> = _dailyReviewUiState.asStateFlow()
 
     val todayTasks: StateFlow<List<DailyTask>> = dailyTaskRepository.observeTodayTasks()
         .stateIn(
@@ -88,10 +118,23 @@ class DashboardViewModel @Inject constructor(
             if (hasPermission) {
                 usageStatsRepository.syncToday()
                 interventionRepository.evaluateToday()
+                runCatching { attentionAnomalyDetector.detectToday() }
+                runCatching { triggerTagger.refreshToday() }
             }
             _usageUiState.value = _usageUiState.value.copy(
                 hasPermission = hasPermission,
                 topApps = if (hasPermission) _usageUiState.value.topApps else emptyList(),
+            )
+        }
+    }
+
+    fun generateDailyReview() {
+        viewModelScope.launch {
+            _dailyReviewUiState.value = DailyReviewUiState(isGenerating = true)
+            val result = dailyReviewGenerator.generateToday()
+            _dailyReviewUiState.value = result.fold(
+                onSuccess = { DailyReviewUiState() },
+                onFailure = { DailyReviewUiState(error = it.message ?: "生成失败") },
             )
         }
     }
@@ -113,9 +156,22 @@ class DashboardViewModel @Inject constructor(
             dailyTaskRepository.delete(taskId)
         }
     }
+
+    private fun startOfTodayMs(): Long =
+        Calendar.getInstance().apply {
+            set(Calendar.HOUR_OF_DAY, 0)
+            set(Calendar.MINUTE, 0)
+            set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
+        }.timeInMillis
 }
 
 data class UsageUiState(
     val hasPermission: Boolean = false,
     val topApps: List<AppUsageSummary> = emptyList(),
+)
+
+data class DailyReviewUiState(
+    val isGenerating: Boolean = false,
+    val error: String? = null,
 )

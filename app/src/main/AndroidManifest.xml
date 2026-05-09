@@ -19,7 +19,7 @@
 
     <!-- 前台服务 + 唤醒锁（保活/AI 推理时用） -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
 
@@ -81,7 +81,11 @@
         <service
             android:name=".core.intervention.ForegroundAppMonitorService"
             android:exported="false"
-            android:foregroundServiceType="dataSync" />
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="foreground_app_intervention_overlay" />
+        </service>
 
         <!-- WorkManager 默认初始化要禁掉，改用 Hilt 提供的 HiltWorkerFactory -->
         <provider

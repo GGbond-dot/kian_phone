@@ -23,7 +23,7 @@ import androidx.room.PrimaryKey
 )
 data class DerivedResult(
     @PrimaryKey val eventId: String,
-    /** 验证码 / 工作 / 社交 / 推广 / 算法推送 / 其他 */
+    /** 验证码 / 工作 / 社交 / 推广 / 算法推送 / 消费信息 / 其他 */
     val classification: String,
     /** 0-3，数字越大越紧急 */
     val priority: Int,

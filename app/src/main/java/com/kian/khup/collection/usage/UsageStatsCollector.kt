@@ -3,6 +3,7 @@ package com.kian.khup.collection.usage
 import android.app.usage.UsageEvents
 import android.app.usage.UsageStatsManager
 import android.content.Context
+import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.util.Calendar
@@ -15,6 +16,16 @@ data class AppUsageSummary(
     val foregroundMs: Long,
 )
 
+data class ForegroundSwitchEvent(
+    val packageName: String,
+    val appLabel: String,
+    val timestamp: Long,
+)
+
+data class ScreenInteractiveEvent(
+    val timestamp: Long,
+)
+
 @Singleton
 class UsageStatsCollector @Inject constructor(
     @ApplicationContext private val context: Context,
@@ -23,7 +34,6 @@ class UsageStatsCollector @Inject constructor(
         context.getSystemService(UsageStatsManager::class.java)
 
     fun getTodayTopApps(limit: Int = 5): List<AppUsageSummary> {
-        val manager = usageStatsManager ?: return emptyList()
         val now = System.currentTimeMillis()
         val startOfDay = Calendar.getInstance().apply {
             timeInMillis = now
@@ -32,20 +42,26 @@ class UsageStatsCollector @Inject constructor(
             set(Calendar.SECOND, 0)
             set(Calendar.MILLISECOND, 0)
         }.timeInMillis
+        return getTopApps(startOfDay, now, limit)
+    }
+
+    fun getTopApps(startMs: Long, endMs: Long, limit: Int = 5): List<AppUsageSummary> {
+        if (endMs <= startMs) return emptyList()
+        val manager = usageStatsManager ?: return emptyList()
 
         // queryUsageStats(INTERVAL_DAILY) 返回 bucket 全段累计,会跨天泄漏。
         // 这里用 queryEvents,只统计屏幕点亮期间的当前前台 App。
-        val events = manager.queryEvents(startOfDay - ONE_DAY_MS, now) ?: return emptyList()
+        val events = manager.queryEvents(startMs - ONE_DAY_MS, endMs) ?: return emptyList()
         val event = UsageEvents.Event()
         val totals = HashMap<String, Long>()
         var screenOn = false
         var currentPackage: String? = null
-        var lastTs = startOfDay
+        var lastTs = startMs
 
         while (events.hasNextEvent()) {
             events.getNextEvent(event)
-            val ts = event.timeStamp.coerceIn(startOfDay - ONE_DAY_MS, now)
-            if (ts >= startOfDay) {
+            val ts = event.timeStamp.coerceIn(startMs - ONE_DAY_MS, endMs)
+            if (ts >= startMs) {
                 if (screenOn && currentPackage != null && ts > lastTs) {
                     totals[currentPackage] = (totals[currentPackage] ?: 0L) + (ts - lastTs)
                 }
@@ -64,11 +80,11 @@ class UsageStatsCollector @Inject constructor(
             }
         }
 
-        if (screenOn && currentPackage != null && now > lastTs) {
-            totals[currentPackage] = (totals[currentPackage] ?: 0L) + (now - lastTs)
+        if (screenOn && currentPackage != null && endMs > lastTs) {
+            totals[currentPackage] = (totals[currentPackage] ?: 0L) + (endMs - lastTs)
         }
 
-        val maxPerApp = now - startOfDay
+        val maxPerApp = endMs - startMs
         return totals.asSequence()
             .map { (pkg, ms) ->
                 AppUsageSummary(
@@ -187,6 +203,67 @@ class UsageStatsCollector @Inject constructor(
         }
 
         return currentPackage
+    }
+
+    fun getForegroundSwitchEvents(startMs: Long, endMs: Long): List<ForegroundSwitchEvent> {
+        if (endMs <= startMs) return emptyList()
+        val manager = usageStatsManager ?: return emptyList()
+        val events = manager.queryEvents(startMs, endMs) ?: return emptyList()
+        val event = UsageEvents.Event()
+        val switches = mutableListOf<ForegroundSwitchEvent>()
+        var lastPackage: String? = null
+
+        while (events.hasNextEvent()) {
+            events.getNextEvent(event)
+            val packageName = event.packageName ?: continue
+            if (event.eventType != UsageEvents.Event.ACTIVITY_RESUMED &&
+                event.eventType != UsageEvents.Event.MOVE_TO_FOREGROUND
+            ) {
+                continue
+            }
+            if (packageName == lastPackage || isIgnoredSwitchPackage(packageName)) continue
+
+            switches += ForegroundSwitchEvent(
+                packageName = packageName,
+                appLabel = resolveAppLabel(packageName),
+                timestamp = event.timeStamp.coerceIn(startMs, endMs),
+            )
+            lastPackage = packageName
+        }
+
+        return switches
+    }
+
+    fun getScreenInteractiveEvents(startMs: Long, endMs: Long): List<ScreenInteractiveEvent> {
+        if (endMs <= startMs) return emptyList()
+        val manager = usageStatsManager ?: return emptyList()
+        val events = manager.queryEvents(startMs, endMs) ?: return emptyList()
+        val event = UsageEvents.Event()
+        val interactiveEvents = mutableListOf<ScreenInteractiveEvent>()
+
+        while (events.hasNextEvent()) {
+            events.getNextEvent(event)
+            if (event.eventType == UsageEvents.Event.SCREEN_INTERACTIVE) {
+                interactiveEvents += ScreenInteractiveEvent(
+                    timestamp = event.timeStamp.coerceIn(startMs, endMs),
+                )
+            }
+        }
+
+        return interactiveEvents
+    }
+
+    private fun isIgnoredSwitchPackage(packageName: String): Boolean {
+        if (packageName == context.packageName) return true
+        if (packageName == "android" || packageName.startsWith("com.android.")) return true
+
+        val pm = context.packageManager
+        return try {
+            val appInfo = pm.getApplicationInfo(packageName, 0)
+            (appInfo.flags and ApplicationInfo.FLAG_SYSTEM) != 0
+        } catch (_: PackageManager.NameNotFoundException) {
+            false
+        }
     }
 
     private companion object {

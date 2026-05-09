@@ -13,6 +13,9 @@ interface DailyReviewDao {
     @Query("SELECT * FROM daily_review WHERE dayStartMs = :dayStartMs LIMIT 1")
     fun observeForDay(dayStartMs: Long): Flow<DailyReview?>
 
+    @Query("SELECT * FROM daily_review WHERE dayStartMs = :dayStartMs LIMIT 1")
+    suspend fun findForDay(dayStartMs: Long): DailyReview?
+
     @Query("SELECT * FROM daily_review WHERE dayStartMs >= :sinceDayStartMs ORDER BY dayStartMs DESC")
     suspend fun loadSince(sinceDayStartMs: Long): List<DailyReview>
 

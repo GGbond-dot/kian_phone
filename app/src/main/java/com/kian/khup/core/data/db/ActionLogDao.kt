@@ -39,4 +39,13 @@ interface ActionLogDao {
         LIMIT :limit
     """)
     fun observeSince(sinceMs: Long, limit: Int): Flow<List<ActionLog>>
+
+    @Query("""
+        SELECT *
+        FROM actions_log
+        WHERE triggeredAt >= :sinceMs
+        ORDER BY triggeredAt DESC
+        LIMIT :limit
+    """)
+    suspend fun loadSince(sinceMs: Long, limit: Int): List<ActionLog>
 }

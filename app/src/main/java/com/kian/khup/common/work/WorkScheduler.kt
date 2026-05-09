@@ -1,9 +1,12 @@
 package com.kian.khup.common.work
 
 import android.content.Context
+import androidx.work.ExistingWorkPolicy
 import androidx.work.ExistingPeriodicWorkPolicy
+import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
+import java.util.Calendar
 import java.util.concurrent.TimeUnit
 
 /**
@@ -51,5 +54,37 @@ object WorkScheduler {
             ExistingPeriodicWorkPolicy.KEEP,
             PeriodicWorkRequestBuilder<HourlySummaryWorker>(1, TimeUnit.HOURS).build(),
         )
+
+        scheduleDailyReview(context, ExistingWorkPolicy.KEEP)
     }
+
+    fun scheduleNextDailyReview(context: Context) {
+        scheduleDailyReview(context, ExistingWorkPolicy.REPLACE)
+    }
+
+    private fun scheduleDailyReview(context: Context, policy: ExistingWorkPolicy) {
+        val delayMs = delayUntilNextDailyReview()
+        WorkManager.getInstance(context).enqueueUniqueWork(
+            DailyReviewWorker.UNIQUE_NAME,
+            policy,
+            OneTimeWorkRequestBuilder<DailyReviewWorker>()
+                .setInitialDelay(delayMs, TimeUnit.MILLISECONDS)
+                .build(),
+        )
+    }
+
+    private fun delayUntilNextDailyReview(): Long {
+        val now = System.currentTimeMillis()
+        val target = Calendar.getInstance().apply {
+            timeInMillis = now
+            set(Calendar.HOUR_OF_DAY, DAILY_REVIEW_HOUR)
+            set(Calendar.MINUTE, 0)
+            set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
+            if (timeInMillis <= now) add(Calendar.DAY_OF_YEAR, 1)
+        }
+        return (target.timeInMillis - now).coerceAtLeast(0L)
+    }
+
+    private const val DAILY_REVIEW_HOUR = 22
 }

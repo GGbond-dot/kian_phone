@@ -18,6 +18,13 @@ interface DailyTaskDao {
 
     @Query("""
         SELECT * FROM daily_tasks
+        WHERE dayStartMs = :dayStartMs
+        ORDER BY isDone ASC, createdAt ASC
+    """)
+    suspend fun loadForDay(dayStartMs: Long): List<DailyTask>
+
+    @Query("""
+        SELECT * FROM daily_tasks
         WHERE dayStartMs < :todayStartMs AND isDone = 0
         ORDER BY dayStartMs DESC, createdAt ASC
     """)

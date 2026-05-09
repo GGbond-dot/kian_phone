@@ -8,15 +8,15 @@ import com.kian.khup.core.data.db.entities.ChatMessage
 @Dao
 interface ChatMessageDao {
 
-    @Query("SELECT * FROM chat_message ORDER BY id ASC")
-    suspend fun loadAll(): List<ChatMessage>
+    @Query("SELECT * FROM chat_message WHERE sessionId = :sessionId ORDER BY id ASC")
+    suspend fun loadBySession(sessionId: Long): List<ChatMessage>
 
-    @Query("SELECT * FROM chat_message ORDER BY id DESC LIMIT :limit")
-    suspend fun loadRecent(limit: Int): List<ChatMessage>
+    @Query("SELECT * FROM chat_message WHERE sessionId = :sessionId ORDER BY id DESC LIMIT :limit")
+    suspend fun loadRecentBySession(sessionId: Long, limit: Int): List<ChatMessage>
 
     @Insert
     suspend fun insert(message: ChatMessage): Long
 
-    @Query("DELETE FROM chat_message")
-    suspend fun clear()
+    @Query("DELETE FROM chat_message WHERE sessionId = :sessionId")
+    suspend fun clearSession(sessionId: Long)
 }

@@ -7,13 +7,16 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 import com.kian.khup.core.data.db.ActionLogDao
 import com.kian.khup.core.data.db.AppDatabase
 import com.kian.khup.core.data.db.AppSessionDao
+import com.kian.khup.core.data.db.AttentionAnomalyDao
 import com.kian.khup.core.data.db.ChatMessageDao
+import com.kian.khup.core.data.db.ChatSessionDao
 import com.kian.khup.core.data.db.ClassificationFeedbackDao
 import com.kian.khup.core.data.db.DailyReviewDao
 import com.kian.khup.core.data.db.DailyTaskDao
 import com.kian.khup.core.data.db.DerivedResultDao
 import com.kian.khup.core.data.db.EventDao
 import com.kian.khup.core.data.db.HourlySummaryDao
+import com.kian.khup.core.data.db.TriggerTagDao
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -29,7 +32,14 @@ object DatabaseModule {
     @Singleton
     fun provideDatabase(@ApplicationContext context: Context): AppDatabase =
         Room.databaseBuilder(context, AppDatabase::class.java, "khup.db")
-            .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
+            .addMigrations(
+                MIGRATION_2_3,
+                MIGRATION_3_4,
+                MIGRATION_4_5,
+                MIGRATION_5_6,
+                MIGRATION_6_7,
+                MIGRATION_7_8,
+            )
             // 开发期 schema 还在变，destructive migration 简单粗暴。
             // TODO: 1.0 发布前补正常的 Migration 链。
             .fallbackToDestructiveMigration()
@@ -58,10 +68,19 @@ object DatabaseModule {
     fun provideChatMessageDao(db: AppDatabase): ChatMessageDao = db.chatMessageDao()
 
     @Provides
+    fun provideChatSessionDao(db: AppDatabase): ChatSessionDao = db.chatSessionDao()
+
+    @Provides
     fun provideHourlySummaryDao(db: AppDatabase): HourlySummaryDao = db.hourlySummaryDao()
 
     @Provides
     fun provideDailyReviewDao(db: AppDatabase): DailyReviewDao = db.dailyReviewDao()
+
+    @Provides
+    fun provideAttentionAnomalyDao(db: AppDatabase): AttentionAnomalyDao = db.attentionAnomalyDao()
+
+    @Provides
+    fun provideTriggerTagDao(db: AppDatabase): TriggerTagDao = db.triggerTagDao()
 
     private val MIGRATION_2_3 = object : Migration(2, 3) {
         override fun migrate(db: SupportSQLiteDatabase) {
@@ -153,6 +172,148 @@ object DatabaseModule {
             )
             db.execSQL(
                 "CREATE UNIQUE INDEX IF NOT EXISTS index_daily_review_dayStartMs ON daily_review(dayStartMs)"
+            )
+        }
+    }
+
+    private val MIGRATION_5_6 = object : Migration(5, 6) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            val now = System.currentTimeMillis()
+
+            db.execSQL(
+                """
+                CREATE TABLE IF NOT EXISTS chat_session (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                    title TEXT NOT NULL,
+                    createdAt INTEGER NOT NULL,
+                    updatedAt INTEGER NOT NULL,
+                    lastMessagePreview TEXT
+                )
+                """.trimIndent()
+            )
+            db.execSQL("CREATE INDEX IF NOT EXISTS index_chat_session_updatedAt ON chat_session(updatedAt)")
+
+            // 是否有遗留消息，决定是否需要建“旧对话”兜底会话。
+            val hadLegacyMessages = db.query("SELECT COUNT(*) FROM chat_message").use { c ->
+                c.moveToFirst() && c.getLong(0) > 0
+            }
+
+            val defaultSessionId: Long? = if (hadLegacyMessages) {
+                db.execSQL(
+                    "INSERT INTO chat_session(title, createdAt, updatedAt, lastMessagePreview) " +
+                        "VALUES('旧对话', $now, $now, NULL)"
+                )
+                db.query("SELECT last_insert_rowid()").use { c ->
+                    if (c.moveToFirst()) c.getLong(0) else null
+                }
+            } else null
+
+            // chat_message 加 sessionId + FK + 索引（SQLite 不支持加 FK，需要重建表）。
+            db.execSQL(
+                """
+                CREATE TABLE chat_message_new (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                    sessionId INTEGER NOT NULL,
+                    role TEXT NOT NULL,
+                    text TEXT NOT NULL,
+                    providerTier TEXT,
+                    timestamp INTEGER NOT NULL,
+                    FOREIGN KEY(sessionId) REFERENCES chat_session(id) ON UPDATE NO ACTION ON DELETE CASCADE
+                )
+                """.trimIndent()
+            )
+
+            if (defaultSessionId != null) {
+                db.execSQL(
+                    "INSERT INTO chat_message_new(id, sessionId, role, text, providerTier, timestamp) " +
+                        "SELECT id, $defaultSessionId, role, text, providerTier, timestamp FROM chat_message"
+                )
+                // 更新默认会话的预览 / updatedAt 为最后一条消息。
+                db.execSQL(
+                    """
+                    UPDATE chat_session
+                    SET updatedAt = COALESCE((SELECT MAX(timestamp) FROM chat_message_new WHERE sessionId = $defaultSessionId), updatedAt),
+                        lastMessagePreview = (
+                            SELECT substr(text, 1, 60) FROM chat_message_new
+                            WHERE sessionId = $defaultSessionId
+                            ORDER BY id DESC LIMIT 1
+                        )
+                    WHERE id = $defaultSessionId
+                    """.trimIndent()
+                )
+            }
+
+            db.execSQL("DROP TABLE chat_message")
+            db.execSQL("ALTER TABLE chat_message_new RENAME TO chat_message")
+            db.execSQL(
+                "CREATE INDEX IF NOT EXISTS index_chat_message_sessionId_timestamp ON chat_message(sessionId, timestamp)"
+            )
+            db.execSQL(
+                "CREATE INDEX IF NOT EXISTS index_chat_message_timestamp ON chat_message(timestamp)"
+            )
+        }
+    }
+
+    private val MIGRATION_6_7 = object : Migration(6, 7) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL(
+                """
+                CREATE TABLE IF NOT EXISTS attention_anomaly (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                    anomalyKey TEXT NOT NULL,
+                    dayStartMs INTEGER NOT NULL,
+                    type TEXT NOT NULL,
+                    severity INTEGER NOT NULL,
+                    title TEXT NOT NULL,
+                    detail TEXT NOT NULL,
+                    packageName TEXT,
+                    metricValue INTEGER NOT NULL,
+                    baselineValue INTEGER,
+                    windowStartMs INTEGER,
+                    windowEndMs INTEGER,
+                    createdAt INTEGER NOT NULL,
+                    ruleVersion TEXT NOT NULL
+                )
+                """.trimIndent()
+            )
+            db.execSQL("CREATE INDEX IF NOT EXISTS index_attention_anomaly_dayStartMs ON attention_anomaly(dayStartMs)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS index_attention_anomaly_type ON attention_anomaly(type)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS index_attention_anomaly_severity ON attention_anomaly(severity)")
+            db.execSQL(
+                "CREATE UNIQUE INDEX IF NOT EXISTS index_attention_anomaly_anomalyKey ON attention_anomaly(anomalyKey)"
+            )
+        }
+    }
+
+    private val MIGRATION_7_8 = object : Migration(7, 8) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL(
+                """
+                CREATE TABLE IF NOT EXISTS trigger_tags (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                    dayStartMs INTEGER NOT NULL,
+                    sourceType TEXT NOT NULL,
+                    sourceId TEXT NOT NULL,
+                    packageName TEXT,
+                    tag TEXT NOT NULL,
+                    confidence INTEGER NOT NULL,
+                    reason TEXT NOT NULL,
+                    createdAt INTEGER NOT NULL,
+                    ruleVersion TEXT NOT NULL
+                )
+                """.trimIndent()
+            )
+            db.execSQL("CREATE INDEX IF NOT EXISTS index_trigger_tags_dayStartMs ON trigger_tags(dayStartMs)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS index_trigger_tags_tag ON trigger_tags(tag)")
+            db.execSQL(
+                "CREATE INDEX IF NOT EXISTS index_trigger_tags_sourceType_sourceId ON trigger_tags(sourceType, sourceId)"
+            )
+            db.execSQL(
+                "CREATE UNIQUE INDEX IF NOT EXISTS index_trigger_tags_dayStartMs_sourceType_sourceId_tag " +
+                    "ON trigger_tags(dayStartMs, sourceType, sourceId, tag)"
+            )
+            db.execSQL(
+                "UPDATE derived_results SET classification = '消费信息' WHERE classification = '金融通知'"
             )
         }
     }

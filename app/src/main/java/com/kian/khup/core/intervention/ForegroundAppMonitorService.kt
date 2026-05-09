@@ -21,6 +21,7 @@ import android.view.WindowManager
 import android.view.inputmethod.InputMethodManager
 import android.widget.Button
 import android.widget.EditText
+import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.core.app.NotificationCompat
@@ -59,7 +60,14 @@ class ForegroundAppMonitorService : Service() {
 
     override fun onCreate() {
         super.onCreate()
-        startForeground(NOTIFICATION_ID, buildForegroundNotification())
+        val foregroundStarted = runCatching {
+            startForeground(NOTIFICATION_ID, buildForegroundNotification())
+        }.onFailure {
+            Log.w(TAG, "failed to start foreground monitor service", it)
+            stopSelf()
+        }.isSuccess
+        if (!foregroundStarted) return
+
         monitorJob = scope.launch { monitorLoop() }
     }
 
@@ -123,10 +131,9 @@ class ForegroundAppMonitorService : Service() {
             isEnabled = false
         }
 
-        val root = LinearLayout(this).apply {
+        val content = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
-            setBackgroundColor(Color.argb(232, 15, 23, 42))
             setPadding(48, 48, 48, 48)
             addView(
                 TextView(this@ForegroundAppMonitorService).apply {
@@ -167,6 +174,41 @@ class ForegroundAppMonitorService : Service() {
                     LinearLayout.LayoutParams.MATCH_PARENT,
                     LinearLayout.LayoutParams.WRAP_CONTENT,
                 ).apply { topMargin = 24 },
+            )
+        }
+        val closeButton = TextView(this).apply {
+            text = "×"
+            textSize = 30f
+            gravity = Gravity.CENTER
+            setTextColor(Color.WHITE)
+            setBackgroundColor(Color.TRANSPARENT)
+            contentDescription = "退出 ${rule.appLabel}"
+            setOnClickListener {
+                restoreMediaVolume()
+                launchHome()
+                removeOverlay()
+            }
+        }
+        val root = FrameLayout(this).apply {
+            setBackgroundColor(Color.argb(232, 15, 23, 42))
+            addView(
+                content,
+                FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.MATCH_PARENT,
+                    FrameLayout.LayoutParams.WRAP_CONTENT,
+                    Gravity.CENTER,
+                ),
+            )
+            addView(
+                closeButton,
+                FrameLayout.LayoutParams(
+                    dp(56),
+                    dp(56),
+                    Gravity.TOP or Gravity.END,
+                ).apply {
+                    topMargin = dp(28)
+                    marginEnd = dp(24)
+                },
             )
         }
 
@@ -221,6 +263,19 @@ class ForegroundAppMonitorService : Service() {
         }
         overlayView = null
         activeRuleId = null
+    }
+
+    private fun launchHome() {
+        runCatching {
+            startActivity(
+                Intent(Intent.ACTION_MAIN).apply {
+                    addCategory(Intent.CATEGORY_HOME)
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                },
+            )
+        }.onFailure {
+            Log.w(TAG, "failed to launch home from purpose gate", it)
+        }
     }
 
     private fun lowerMediaVolume() {
@@ -286,6 +341,9 @@ class ForegroundAppMonitorService : Service() {
             setColor(color)
             cornerRadius = radiusDp * resources.displayMetrics.density
         }
+
+    private fun dp(value: Int): Int =
+        (value * resources.displayMetrics.density).toInt()
 
     companion object {
         private const val TAG = "KHUP/ForegroundMonitor"

@@ -18,6 +18,11 @@ data class ClassifiedEvent(
     val modelVersion: String,
 )
 
+data class ClassificationTotal(
+    val classification: String,
+    val count: Int,
+)
+
 @Dao
 interface DerivedResultDao {
 
@@ -52,4 +57,19 @@ interface DerivedResultDao {
         LIMIT :limit
     """)
     fun observeClassifiedEvents(classification: String, limit: Int): Flow<List<ClassifiedEvent>>
+
+    @Query("""
+        SELECT d.classification, COUNT(*) AS count
+        FROM derived_results d
+        INNER JOIN events e ON e.eventId = d.eventId
+        WHERE e.timestamp >= :startMs AND e.timestamp < :endMs
+        GROUP BY d.classification
+        ORDER BY count DESC
+        LIMIT :limit
+    """)
+    suspend fun loadClassificationTotalsInWindow(
+        startMs: Long,
+        endMs: Long,
+        limit: Int,
+    ): List<ClassificationTotal>
 }

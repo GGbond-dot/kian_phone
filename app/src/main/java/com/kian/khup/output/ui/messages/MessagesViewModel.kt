@@ -92,7 +92,7 @@ enum class MessageCategory(val label: String) {
     Social("社交"),
     All("全部"),
     Verification("验证码"),
-    Finance("金融通知"),
+    Finance("消费信息"),
     Work("工作"),
     Promotion("推广"),
     Algorithm("算法推送"),

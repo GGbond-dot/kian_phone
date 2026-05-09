@@ -15,6 +15,9 @@ captures/
 .cxx/
 .externalNativeBuild/
 
+# VS Code local indexes
+.vscode/browse.vc.db*
+
 # Keystore（不要进版本库）
 *.jks
 *.keystore

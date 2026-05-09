@@ -7,6 +7,11 @@ import androidx.room.Query
 import com.kian.khup.core.data.db.entities.Event
 import kotlinx.coroutines.flow.Flow
 
+data class NotificationPackageTotal(
+    val packageName: String,
+    val count: Int,
+)
+
 @Dao
 interface EventDao {
 
@@ -48,4 +53,19 @@ interface EventDao {
         ORDER BY timestamp ASC
     """)
     suspend fun getInWindow(type: EventType, startMs: Long, endMs: Long): List<Event>
+
+    @Query("""
+        SELECT packageName, COUNT(*) AS count
+        FROM events
+        WHERE type = :type AND timestamp >= :startMs AND timestamp < :endMs
+        GROUP BY packageName
+        ORDER BY count DESC
+        LIMIT :limit
+    """)
+    suspend fun loadTopPackagesInWindow(
+        type: EventType,
+        startMs: Long,
+        endMs: Long,
+        limit: Int,
+    ): List<NotificationPackageTotal>
 }

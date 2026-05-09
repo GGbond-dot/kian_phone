@@ -21,8 +21,8 @@ class RuleNotificationClassifier @Inject constructor() {
             isVerification(combined) -> "验证码"
             packageName == "com.tencent.mm" -> classifyTencent(title, body, isWeChat = true)
             packageName == "com.tencent.mobileqq" -> classifyTencent(title, body, isWeChat = false)
-            packageName in financePackages -> "金融通知"
-            hasAny(combined, financeKeywords) -> "金融通知"
+            packageName in financePackages -> "消费信息"
+            hasAny(combined, financeKeywords) -> "消费信息"
             packageName in algorithmPackages || hasAny(lower, algorithmKeywords) -> "算法推送"
             packageName in workPackages || hasAny(lower, workKeywords) -> "工作"
             hasAny(lower, promoKeywords) || hasAny(channel, promoKeywords) -> "推广"
@@ -46,7 +46,7 @@ class RuleNotificationClassifier @Inject constructor() {
 
     private fun classifyTencent(title: String, body: String, isWeChat: Boolean): String {
         val finMarkers = if (isWeChat) wechatFinanceMarkers else qqFinanceMarkers
-        if (finMarkers.any { title.contains(it) || body.contains(it) }) return "金融通知"
+        if (finMarkers.any { title.contains(it) || body.contains(it) }) return "消费信息"
         val promoMarkers = if (isWeChat) wechatPromoMarkers else qqPromoMarkers
         if (promoMarkers.any { title.contains(it) || body.contains(it) }) return "推广"
         return "社交"
@@ -58,7 +58,7 @@ class RuleNotificationClassifier @Inject constructor() {
             classification == "工作" && hasAny(text, urgentKeywords) -> 3
             classification == "工作" -> 2
             classification == "社交" -> 1
-            classification == "金融通知" -> 1
+            classification == "消费信息" -> 1
             else -> 0
         }
 
