@@ -87,6 +87,16 @@ interface AppSessionDao {
     fun observeDailyUsageSince(sinceMs: Long): Flow<List<DailyUsageTotal>>
 
     @Query("""
+        SELECT startTime AS dayStartMs, SUM(COALESCE(durationMs, 0)) AS foregroundMs
+        FROM app_sessions
+        WHERE startTime >= :sinceMs
+        GROUP BY startTime
+        HAVING foregroundMs > 0
+        ORDER BY dayStartMs ASC
+    """)
+    suspend fun loadDailyUsageSince(sinceMs: Long): List<DailyUsageTotal>
+
+    @Query("""
         SELECT COALESCE(SUM(COALESCE(durationMs, 0)), 0)
         FROM app_sessions
         WHERE startTime >= :sinceMs

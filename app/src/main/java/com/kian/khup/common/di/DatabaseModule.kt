@@ -5,18 +5,24 @@ import androidx.room.Room
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import com.kian.khup.core.data.db.ActionLogDao
+import com.kian.khup.core.data.db.AnomalySuggestionDao
 import com.kian.khup.core.data.db.AppDatabase
 import com.kian.khup.core.data.db.AppSessionDao
 import com.kian.khup.core.data.db.AttentionAnomalyDao
+import com.kian.khup.core.data.db.CategoryUsageCacheDao
 import com.kian.khup.core.data.db.ChatMessageDao
 import com.kian.khup.core.data.db.ChatSessionDao
 import com.kian.khup.core.data.db.ClassificationFeedbackDao
+import com.kian.khup.core.data.db.ContentThemeTagDao
+import com.kian.khup.core.data.db.DailyPlanDao
 import com.kian.khup.core.data.db.DailyReviewDao
-import com.kian.khup.core.data.db.DailyTaskDao
 import com.kian.khup.core.data.db.DerivedResultDao
 import com.kian.khup.core.data.db.EventDao
 import com.kian.khup.core.data.db.HourlySummaryDao
 import com.kian.khup.core.data.db.TriggerTagDao
+import com.kian.khup.core.data.db.UserFeedbackDao
+import com.kian.khup.core.data.db.migrations.MIGRATION_10_11
+import com.kian.khup.core.data.db.migrations.MIGRATION_11_12
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -39,10 +45,11 @@ object DatabaseModule {
                 MIGRATION_5_6,
                 MIGRATION_6_7,
                 MIGRATION_7_8,
+                MIGRATION_8_9,
+                MIGRATION_9_10,
+                MIGRATION_10_11,
+                MIGRATION_11_12,
             )
-            // 开发期 schema 还在变，destructive migration 简单粗暴。
-            // TODO: 1.0 发布前补正常的 Migration 链。
-            .fallbackToDestructiveMigration()
             .build()
 
     @Provides
@@ -55,7 +62,10 @@ object DatabaseModule {
     fun provideDerivedResultDao(db: AppDatabase): DerivedResultDao = db.derivedResultDao()
 
     @Provides
-    fun provideDailyTaskDao(db: AppDatabase): DailyTaskDao = db.dailyTaskDao()
+    fun provideAnomalySuggestionDao(db: AppDatabase): AnomalySuggestionDao = db.anomalySuggestionDao()
+
+    @Provides
+    fun provideUserFeedbackDao(db: AppDatabase): UserFeedbackDao = db.userFeedbackDao()
 
     @Provides
     fun provideClassificationFeedbackDao(db: AppDatabase): ClassificationFeedbackDao =
@@ -81,6 +91,15 @@ object DatabaseModule {
 
     @Provides
     fun provideTriggerTagDao(db: AppDatabase): TriggerTagDao = db.triggerTagDao()
+
+    @Provides
+    fun provideContentThemeTagDao(db: AppDatabase): ContentThemeTagDao = db.contentThemeTagDao()
+
+    @Provides
+    fun provideCategoryUsageCacheDao(db: AppDatabase): CategoryUsageCacheDao = db.categoryUsageCacheDao()
+
+    @Provides
+    fun provideDailyPlanDao(db: AppDatabase): DailyPlanDao = db.dailyPlanDao()
 
     private val MIGRATION_2_3 = object : Migration(2, 3) {
         override fun migrate(db: SupportSQLiteDatabase) {
@@ -314,6 +333,70 @@ object DatabaseModule {
             )
             db.execSQL(
                 "UPDATE derived_results SET classification = '消费信息' WHERE classification = '金融通知'"
+            )
+        }
+    }
+
+    private val MIGRATION_8_9 = object : Migration(8, 9) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL(
+                """
+                CREATE TABLE IF NOT EXISTS content_theme_tags (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                    dayStartMs INTEGER NOT NULL,
+                    sourceType TEXT NOT NULL,
+                    sourceId TEXT NOT NULL,
+                    packageName TEXT,
+                    theme TEXT NOT NULL,
+                    confidence INTEGER NOT NULL,
+                    evidence TEXT NOT NULL,
+                    createdAt INTEGER NOT NULL,
+                    ruleVersion TEXT NOT NULL
+                )
+                """.trimIndent()
+            )
+            db.execSQL(
+                "CREATE INDEX IF NOT EXISTS index_content_theme_tags_dayStartMs ON content_theme_tags(dayStartMs)"
+            )
+            db.execSQL(
+                "CREATE INDEX IF NOT EXISTS index_content_theme_tags_theme ON content_theme_tags(theme)"
+            )
+            db.execSQL(
+                "CREATE INDEX IF NOT EXISTS index_content_theme_tags_sourceType_sourceId " +
+                    "ON content_theme_tags(sourceType, sourceId)"
+            )
+            db.execSQL(
+                "CREATE UNIQUE INDEX IF NOT EXISTS index_content_theme_tags_dayStartMs_sourceType_sourceId_theme " +
+                    "ON content_theme_tags(dayStartMs, sourceType, sourceId, theme)"
+            )
+        }
+    }
+
+    private val MIGRATION_9_10 = object : Migration(9, 10) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL(
+                """
+                CREATE TABLE IF NOT EXISTS category_usage_cache (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                    dayStartMs INTEGER NOT NULL,
+                    category TEXT NOT NULL,
+                    foregroundMs INTEGER NOT NULL,
+                    computedAt INTEGER NOT NULL,
+                    ruleVersion TEXT NOT NULL
+                )
+                """.trimIndent()
+            )
+            db.execSQL(
+                "CREATE INDEX IF NOT EXISTS index_category_usage_cache_dayStartMs " +
+                    "ON category_usage_cache(dayStartMs)"
+            )
+            db.execSQL(
+                "CREATE INDEX IF NOT EXISTS index_category_usage_cache_category " +
+                    "ON category_usage_cache(category)"
+            )
+            db.execSQL(
+                "CREATE UNIQUE INDEX IF NOT EXISTS index_category_usage_cache_dayStartMs_category " +
+                    "ON category_usage_cache(dayStartMs, category)"
             )
         }
     }

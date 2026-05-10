@@ -238,6 +238,248 @@ KHUP 要奖励和保护前者，识别和温和拦截后者。
 1. 读 `UsageStatsCollector`，确认 `UsageEvents` 可复用。
 2. 新增前台切换事件模型和方法。
 3. 新增亮屏事件模型和方法。
-4. 扩展 `AttentionAnomalyDetector`。
-5. 编译并真机验证：首页异常卡片能看到新异常。
-6. 验证 AI 问“今天为什么失控？”时，`get_today_context` 包含新异常。
+
+---
+
+## 6. 2026-05-09 继续：逃逸性异常检测第一版
+
+本轮完成：
+
+- `UsageStatsCollector` 新增前台切换事件读取：
+  - `ForegroundSwitchEvent`
+  - `getForegroundSwitchEvents(startMs, endMs)`
+  - 过滤 KHUP 自身、系统包、连续相同 package
+- `UsageStatsCollector` 新增亮屏事件读取：
+  - `ScreenInteractiveEvent`
+  - `getScreenInteractiveEvents(startMs, endMs)`
+- `AttentionAnomalyDetector` 新增 3 个逃逸性规则：
+  - `rapid_app_switching`：10 分钟内前台 App 切换 >= 10 次
+  - `repeated_unlocks`：5 分钟内亮屏 >= 3 次
+  - `late_repeated_unlocks`：22:30 后亮屏 >= 5 次
+- `get_today_diagnosis` 已把新类型并入 `异常模式` 和 `异常性质=逃逸性` 权重。
+- Dashboard 异常卡片已补对应建议文案。
+
+验证：
+
+```bash
+./gradlew assembleDebug
+adb install -r app/build/outputs/apk/debug/app-debug.apk
+adb shell am start -n com.kian.khup.debug/com.kian.khup.MainActivity
+adb logcat -d -b crash
+```
+
+结果：
+
+- `assembleDebug` 成功。
+- APK 安装成功。
+- 主界面启动成功。
+- crash buffer 无内容。
+- 真机日志确认 `AttentionAnomalyDetector.detectToday()` 已执行。
+- 导出 debug 数据库只读查询，已实际命中新类型：
+  - `repeated_unlocks`：5 分钟内亮屏 8 次
+  - `rapid_app_switching`：10 分钟内切换 10 次 App
+- `late_repeated_unlocks` 需要 22:30 后样本，白天验证时不会命中。
+
+后续建议：
+
+1. 用真机实际切换/亮屏一段时间后，确认 `attention_anomaly` 是否出现新类型。
+2. 如果误报偏高，再调阈值或给连续亮屏增加最小间隔去重。
+3. 后面再接“无名导师一句话”，让云端只基于诊断 JSON 输出一条行动建议。
+
+---
+
+## 7. 2026-05-09 继续：无名导师一句话
+
+本轮完成：
+
+- `DailyReviewGenerator` 在每日复盘生成后，额外构造本地诊断 JSON：
+  - `总时长`
+  - `类目超基线`
+  - `茧房收敛`
+  - `异常模式`
+  - `异常性质`
+- 新增无名导师 prompt：
+  - 输入只给诊断 JSON 和共享世界观 / 表达约束。
+  - 输出只允许一句中文。
+  - 不超过 200 字。
+  - 不寒暄、不复述数据、不道德审判。
+  - 逃逸性异常时语气更靠近，少建议，多问一句。
+- 结果写入 `daily_review.highlights` 的 `无名导师` 字段，不改 Room schema。
+- 同时把本轮诊断 JSON 写入 `daily_review.highlights` 的 `诊断` 字段，方便后续调试和复用。
+- LLM 失败时有规则 fallback，避免每日复盘因为导师句子失败而整体失败。
+- Dashboard 今日复盘卡片会优先展示 `无名导师` 字段，再展示原复盘正文。
+
+验证：
+
+```bash
+./gradlew assembleDebug
+adb install -r app/build/outputs/apk/debug/app-debug.apk
+adb shell am start -n com.kian.khup.debug/com.kian.khup.MainActivity
+adb logcat -d -b crash
+```
+
+结果：
+
+- `assembleDebug` 成功。
+- APK 安装成功。
+- 主界面启动成功。
+- crash buffer 无内容。
+
+注意：
+
+- 真机启动验证后 ADB 设备临时断开，未能继续点击“重新生成今日复盘”做入库字段验证。
+- 设备恢复后建议手动重新生成一次复盘，再查询 `daily_review.highlights` 是否包含 `无名导师` 和 `诊断`。
+
+设备恢复后补充验证：
+
+- 点击“重新生成今日复盘”成功。
+- UI 已展示 `无名导师` 一句话。
+- 导出 `khup.db + khup.db-wal + khup.db-shm` 后确认：
+  - `modelVersion=daily-review-v3`
+  - `highlights` 包含 `无名导师`
+  - `highlights` 包含 `诊断`
+  - `诊断.异常性质=混合`
+
+---
+
+## 8. 2026-05-09 继续：AI 最近 7 天查询能力
+
+本轮完成：
+
+- 新增 DAO 只读查询，不改 schema：
+  - `AppSessionDao.loadDailyUsageSince`
+  - `TriggerTagDao.loadTagTotalsSince`
+  - `TriggerTagDao.loadDailyTagTotalsSince`
+  - `AttentionAnomalyDao.loadSince`
+- `AiLocalToolRegistry` 新增 `get_weekly_context`：
+  - 最近 7 天每日用机
+  - 最近 7 天 Top App
+  - 最近 7 天 Top 诱因
+  - 每日主导诱因
+  - 最近 7 天主要异常
+  - 最重用机日
+- AI 工具选择新增周维度关键词：
+  - `这周`
+  - `本周`
+  - `最近7天`
+  - `哪天最失控`
+  - `最大诱因`
+  - `week`
+  - `7 days`
+  - `biggest trigger`
+- 周关键词优先级高于“今天上下文”，避免“这周为什么失控”被误判为今日查询。
+
+验证：
+
+```bash
+./gradlew assembleDebug
+adb install -r app/build/outputs/apk/debug/app-debug.apk
+```
+
+真机 AI 对话输入：
+
+```text
+this week biggest trigger
+```
+
+结果：
+
+- API 正常返回。
+- 回答命中最近 7 天诱因统计：`社交打断，7 天共 186 次`。
+- crash buffer 无内容。
+
+---
+
+## 9. 2026-05-09 继续：内容主题、信息茧房、类目基线缓存
+
+本轮严格对应文档中的三项暂缺能力：
+
+- `真正的内容主题标签`
+- `信息茧房 / 内容偏食干预`
+- `类目 7 日中位数的长期缓存`
+
+完成内容：
+
+1. 新增 `content_theme_tags` 表，Room 升到 v9。
+   - 实体：`ContentThemeTag`
+   - DAO：`ContentThemeTagDao`
+   - migration：`MIGRATION_8_9`
+
+2. 新增 `ContentThemeTagger`。
+   - 只基于文档允许的数据推断：
+     - 通知标题 / 正文 / channel / category
+     - 小时摘要
+     - App 使用
+   - 不读取屏幕内容，不做 OCR，不联网检索。
+   - 第一版主题：
+     - 社交关系
+     - 学习课程
+     - 工作任务
+     - 消费种草
+     - 娱乐内容
+     - 奖励循环
+     - 争议新闻
+     - 状态焦虑
+     - 比赛观赛
+     - 算法内容
+
+3. 新增 `InformationCocoonAnalyzer`。
+   - 基于 `content_theme_tags` 判断：
+     - 今日主导主题
+     - 主导主题占比
+     - 连续主导天数
+     - 是否茧房收敛
+     - 轻量干预建议
+   - 干预保持文档边界：
+     - 冷却提醒
+     - 自我提问
+     - 事实核查式提醒
+     - 兴趣迁移方向
+
+4. `DailyReviewGenerator` 接入内容主题和茧房分析。
+   - 生成复盘前刷新内容主题。
+   - prompt 增加“内容主题”和“信息茧房风险”。
+   - `daily_review.highlights["诊断"]` 增加：
+     - `内容主题`
+     - 基于主题的 `茧房收敛`
+
+5. `AiLocalToolRegistry` 接入内容主题和茧房分析。
+   - `get_today_diagnosis` 输出 `内容主题`。
+   - `茧房收敛` 改为基于内容主题，而不是只看诱因标签。
+   - `get_weekly_context` 增加：
+     - 最近 7 天 Top 内容主题
+     - 每日主导内容主题
+
+6. 新增 `category_usage_cache` 表，Room 升到 v10。
+   - 实体：`CategoryUsageCache`
+   - DAO：`CategoryUsageCacheDao`
+   - migration：`MIGRATION_9_10`
+
+7. 新增 `CategoryUsageCacheRefresher`。
+   - 按天缓存类目用时：
+     - 算法内容
+     - 社交
+     - 学习工作
+     - 消费
+     - 必要事务
+     - 其他
+   - `get_today_diagnosis` 现在刷新最近 8 天缓存，再从 `category_usage_cache` 读取过去 7 天类目中位数。
+   - 避免每次诊断都临时扫 7 天 UsageEvents。
+
+验证：
+
+```bash
+./gradlew assembleDebug
+```
+
+结果：
+
+- `assembleDebug` 成功。
+- 本轮按用户要求未做上机验证。
+- 编译只剩已有的 Room destructive migration deprecation warning。
+
+后续仍未做：
+
+- 稳定系统 unlock 事件，不再用 `SCREEN_INTERACTIVE` 近似。
+- 切屏序列的链路结构分析。
+- 信息茧房更高级的反向视角 / 事实核查 / 外部来源推荐。

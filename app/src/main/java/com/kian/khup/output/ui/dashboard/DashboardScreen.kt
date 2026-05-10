@@ -1,3 +1,4 @@
+// DEPRECATED: 已被 TodayScreen 替代，下个迭代删除
 package com.kian.khup.output.ui.dashboard
 
 import androidx.compose.foundation.layout.Arrangement
@@ -43,12 +44,13 @@ import com.kian.khup.core.data.db.TriggerTagTotal
 import com.kian.khup.core.data.db.entities.ActionLog
 import com.kian.khup.core.data.db.entities.AttentionAnomaly
 import com.kian.khup.core.data.db.entities.DailyReview
-import com.kian.khup.core.data.db.entities.DailyTask
+import com.kian.khup.core.data.db.entities.AnomalySuggestion
 import com.kian.khup.core.data.db.entities.HourlySummary
 import com.kian.khup.core.trigger.TriggerTagger
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import org.json.JSONObject
 
 @Composable
 fun DashboardScreen(viewModel: DashboardViewModel = hiltViewModel()) {
@@ -91,8 +93,8 @@ fun DashboardScreen(viewModel: DashboardViewModel = hiltViewModel()) {
 @Composable
 private fun DashboardContent(
     usageUiState: UsageUiState,
-    todayTasks: List<DailyTask>,
-    overdueTasks: List<DailyTask>,
+    todayTasks: List<AnomalySuggestion>,
+    overdueTasks: List<AnomalySuggestion>,
     todayActions: List<ActionLog>,
     latestHourlySummary: HourlySummary?,
     todayReview: DailyReview?,
@@ -128,7 +130,7 @@ private fun DashboardContent(
             }
             DashboardTab.Tasks -> DashboardTabContent {
                 item {
-                    DailyTasksCard(
+                    AnomalySuggestionsCard(
                         tasks = todayTasks,
                         overdueTasks = overdueTasks,
                         onAddTask = onAddTask,
@@ -341,6 +343,13 @@ private fun DailyReviewCard(
                     )
                 }
                 else -> {
+                    mentorLine(review)?.let { line ->
+                        Text(
+                            text = line,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.primary,
+                        )
+                    }
                     Text(
                         text = review.summary,
                         style = MaterialTheme.typography.bodyMedium,
@@ -449,9 +458,9 @@ private fun InterventionCard(actions: List<ActionLog>) {
 }
 
 @Composable
-private fun DailyTasksCard(
-    tasks: List<DailyTask>,
-    overdueTasks: List<DailyTask>,
+private fun AnomalySuggestionsCard(
+    tasks: List<AnomalySuggestion>,
+    overdueTasks: List<AnomalySuggestion>,
     onAddTask: (String) -> Unit,
     onTaskCheckedChange: (Long, Boolean) -> Unit,
     onDeleteTask: (Long) -> Unit,
@@ -482,7 +491,7 @@ private fun DailyTasksCard(
                 )
             } else {
                 tasks.forEach { task ->
-                    DailyTaskRow(
+                    AnomalySuggestionRow(
                         task = task,
                         onCheckedChange = { checked -> onTaskCheckedChange(task.id, checked) },
                         onDelete = { onDeleteTask(task.id) },
@@ -497,7 +506,7 @@ private fun DailyTasksCard(
                     modifier = Modifier.padding(top = 4.dp),
                 )
                 overdueTasks.forEach { task ->
-                    DailyTaskRow(
+                    AnomalySuggestionRow(
                         task = task,
                         leadingLabel = formatDay(task.dayStartMs),
                         onCheckedChange = { checked -> onTaskCheckedChange(task.id, checked) },
@@ -529,8 +538,8 @@ private fun DailyTasksCard(
 }
 
 @Composable
-private fun DailyTaskRow(
-    task: DailyTask,
+private fun AnomalySuggestionRow(
+    task: AnomalySuggestion,
     leadingLabel: String? = null,
     onCheckedChange: (Boolean) -> Unit,
     onDelete: () -> Unit,
@@ -674,6 +683,11 @@ private fun anomalySuggestion(anomaly: AttentionAnomaly): String =
         "late_repeated_unlocks" -> "今晚别再确认一次了，把屏幕朝下，给入睡留出空白。"
         else -> "先暂停 2 分钟，写下它打断你的具体原因。"
     }
+
+private fun mentorLine(review: DailyReview): String? =
+    runCatching {
+        JSONObject(review.highlights).optString("无名导师").takeIf { it.isNotBlank() }
+    }.getOrNull()
 
 private fun triggerTagLabel(tag: String): String =
     when (tag) {

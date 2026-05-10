@@ -12,9 +12,9 @@ import com.kian.khup.core.data.db.HourlySummaryDao
 import com.kian.khup.core.data.db.TriggerTagDao
 import com.kian.khup.core.data.db.TriggerTagTotal
 import com.kian.khup.core.data.db.entities.ActionLog
+import com.kian.khup.core.data.db.entities.AnomalySuggestion
 import com.kian.khup.core.data.db.entities.AttentionAnomaly
 import com.kian.khup.core.data.db.entities.DailyReview
-import com.kian.khup.core.data.db.entities.DailyTask
 import com.kian.khup.core.data.db.entities.HourlySummary
 import com.kian.khup.core.data.repository.DailyTaskRepository
 import com.kian.khup.core.data.repository.InterventionRepository
@@ -81,14 +81,14 @@ class DashboardViewModel @Inject constructor(
     private val _dailyReviewUiState = MutableStateFlow(DailyReviewUiState())
     val dailyReviewUiState: StateFlow<DailyReviewUiState> = _dailyReviewUiState.asStateFlow()
 
-    val todayTasks: StateFlow<List<DailyTask>> = dailyTaskRepository.observeTodayTasks()
+    val todayTasks: StateFlow<List<AnomalySuggestion>> = dailyTaskRepository.observeTodayTasks()
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5_000),
             initialValue = emptyList(),
         )
 
-    val overdueTasks: StateFlow<List<DailyTask>> = dailyTaskRepository.observeOverdueUnfinishedTasks()
+    val overdueTasks: StateFlow<List<AnomalySuggestion>> = dailyTaskRepository.observeOverdueUnfinishedTasks()
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5_000),

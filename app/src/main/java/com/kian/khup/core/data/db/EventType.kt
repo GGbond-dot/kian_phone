@@ -12,4 +12,5 @@ enum class EventType {
     CHAOXING_HOMEWORK,
     CHAOXING_SIGN_IN,
     CHAOXING_EXAM,
+    USER_REPORT,              // 用户主动输入的行为处境（行为线 MVP）
 }

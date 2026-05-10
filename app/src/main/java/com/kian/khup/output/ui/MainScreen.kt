@@ -2,11 +2,10 @@ package com.kian.khup.output.ui
 
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Analytics
 import androidx.compose.material.icons.outlined.AutoAwesome
-import androidx.compose.material.icons.outlined.Inbox
-import androidx.compose.material.icons.outlined.Notifications
+import androidx.compose.material.icons.outlined.History
 import androidx.compose.material.icons.outlined.Settings
+import androidx.compose.material.icons.outlined.Today
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -22,15 +21,15 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.kian.khup.output.ui.ai.AiChatScreen
-import com.kian.khup.output.ui.analytics.AnalyticsScreen
-import com.kian.khup.output.ui.dashboard.DashboardScreen
-import com.kian.khup.output.ui.messages.MessagesScreen
+import com.kian.khup.output.ui.dailyplan.DailyPlanScreen
+import com.kian.khup.output.ui.history.HistoryScreen
+import com.kian.khup.output.ui.messages.NotificationsScreen
 import com.kian.khup.output.ui.settings.SettingsScreen
+import com.kian.khup.output.ui.today.TodayScreen
 
 private enum class Tab(val route: String, val label: String, val icon: ImageVector) {
-    Dashboard("dashboard", "首页", Icons.Outlined.Notifications),
-    Messages("messages", "消息", Icons.Outlined.Inbox),
-    Analytics("analytics", "用机", Icons.Outlined.Analytics),
+    Today("today", "今日", Icons.Outlined.Today),
+    History("history", "历史", Icons.Outlined.History),
     Ai("ai", "AI", Icons.Outlined.AutoAwesome),
     Settings("settings", "设置", Icons.Outlined.Settings),
 }
@@ -67,14 +66,26 @@ fun MainScreen() {
     ) { padding ->
         NavHost(
             navController = navController,
-            startDestination = Tab.Dashboard.route,
+            startDestination = Tab.Today.route,
             modifier = Modifier.padding(padding),
         ) {
-            composable(Tab.Dashboard.route) { DashboardScreen() }
-            composable(Tab.Messages.route)  { MessagesScreen() }
-            composable(Tab.Analytics.route) { AnalyticsScreen() }
-            composable(Tab.Ai.route)        { AiChatScreen() }
-            composable(Tab.Settings.route)  { SettingsScreen() }
+            composable(Tab.Today.route) {
+                TodayScreen(
+                    onNavigateToSettings = { navController.navigate(Tab.Settings.route) },
+                    onNavigateToHistory = { navController.navigate(Tab.History.route) },
+                    onNavigateToNotifications = { navController.navigate("notifications") },
+                    onNavigateToDailyPlan = { navController.navigate("daily_plan") },
+                )
+            }
+            composable(Tab.History.route) { HistoryScreen() }
+            composable(Tab.Ai.route) { AiChatScreen() }
+            composable(Tab.Settings.route) { SettingsScreen() }
+            composable("notifications") {
+                NotificationsScreen(onBack = { navController.popBackStack() })
+            }
+            composable("daily_plan") {
+                DailyPlanScreen(onBack = { navController.popBackStack() })
+            }
         }
     }
 }

@@ -2,6 +2,7 @@ package com.kian.khup.core.ai
 
 import android.content.Context
 import android.util.Log
+import com.kian.khup.BuildConfig
 import com.google.ai.edge.litertlm.Backend
 import com.google.ai.edge.litertlm.Content
 import com.google.ai.edge.litertlm.Engine
@@ -61,7 +62,7 @@ class LiteRtLmLlmEngine @Inject constructor(
                         .joinToString(separator = "") { it.text }
                         .trim()
                 }
-                Log.i(TAG, "$logLabel result: $response")
+                logLlmOutput(logLabel, response)
                 response
             }.onFailure { error ->
                 Log.e(TAG, "$logLabel failed", error)
@@ -101,6 +102,13 @@ class LiteRtLmLlmEngine @Inject constructor(
         val adbDevModel = "/data/local/tmp/llm/$MODEL_FILE_NAME"
 
         return listOfNotNull(appPrivateModel, externalModel, adbDevModel)
+    }
+
+    private fun logLlmOutput(logLabel: String, response: String) {
+        // 隐私底线：完整 LLM 输出绝不能写 logcat。DEBUG 只写 redact 摘要；release 完全静默。
+        if (!BuildConfig.DEBUG) return
+        val redacted = response.take(80).replace(Regex("[\\r\\n]"), " ") + "..."
+        Log.d(TAG, "$logLabel response (redacted, ${response.length}ch): $redacted")
     }
 
     private companion object {

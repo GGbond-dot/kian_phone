@@ -121,4 +121,10 @@ dependencies {
 
     // 端侧 LLM：LiteRT-LM 跑 Gemma 4 E4B .litertlm 模型。
     implementation(libs.litertlm.android)
+
+    // androidTest（Migration 测试等）
+    androidTestImplementation(libs.junit)
+    androidTestImplementation(libs.androidx.test.runner)
+    androidTestImplementation(libs.androidx.test.ext.junit)
+    androidTestImplementation(libs.room.testing)
 }

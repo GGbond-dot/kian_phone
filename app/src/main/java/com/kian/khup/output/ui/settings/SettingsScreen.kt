@@ -159,6 +159,10 @@ fun SettingsScreen(viewModel: SettingsViewModel = hiltViewModel()) {
             },
             onRefreshModel = viewModel::refreshAiModelState,
         )
+
+        DataCard()
+
+        PrivacyCard()
     }
 }
 
@@ -352,6 +356,67 @@ private fun ThresholdRow(
                 Icon(Icons.Outlined.Add, contentDescription = "增加$title 阈值")
             }
         }
+    }
+}
+
+@Composable
+private fun DataCard() {
+    val context = LocalContext.current
+    val placeholder = { android.widget.Toast.makeText(context, "下个版本实现", android.widget.Toast.LENGTH_SHORT).show() }
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+    ) {
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text("数据", style = MaterialTheme.typography.titleMedium) // TODO: strings.xml
+            SettingsRow("导出全部数据", onClick = placeholder)
+            SettingsRow("清空历史数据", onClick = placeholder)
+            SettingsRow("数据保留策略", onClick = placeholder)
+        }
+    }
+}
+
+@Composable
+private fun PrivacyCard() {
+    val context = LocalContext.current
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+    ) {
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text("隐私", style = MaterialTheme.typography.titleMedium) // TODO: strings.xml
+            PrivacyStaticRow("LLM 输出不写日志")
+            PrivacyStaticRow("用户输入会脱敏后送 prompt")
+            SettingsRow("哪些字段会出端") {
+                android.widget.Toast.makeText(context, "下个版本实现", android.widget.Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+}
+
+@Composable
+private fun SettingsRow(title: String, onClick: () -> Unit) {
+    TextButton(
+        onClick = onClick,
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            Text(title, style = MaterialTheme.typography.bodyMedium)
+            Text("→", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    }
+}
+
+@Composable
+private fun PrivacyStaticRow(title: String) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 8.dp, vertical = 4.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+    ) {
+        Text(title, style = MaterialTheme.typography.bodyMedium)
+        Text("✓", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary)
     }
 }
 

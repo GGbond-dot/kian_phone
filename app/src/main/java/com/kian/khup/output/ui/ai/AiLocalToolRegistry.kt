@@ -1,14 +1,19 @@
 package com.kian.khup.output.ui.ai
 
 import com.kian.khup.collection.usage.UsageStatsCollector
+import com.kian.khup.core.content.ContentThemeTagger
+import com.kian.khup.core.content.InformationCocoonAnalyzer
 import com.kian.khup.core.data.db.AppSessionDao
 import com.kian.khup.core.data.db.AttentionAnomalyDao
+import com.kian.khup.core.data.db.CategoryUsageCacheDao
+import com.kian.khup.core.data.db.ContentThemeTagDao
 import com.kian.khup.core.data.db.DailyReviewDao
 import com.kian.khup.core.data.db.DerivedResultDao
 import com.kian.khup.core.data.db.EventDao
 import com.kian.khup.core.data.db.EventType
 import com.kian.khup.core.data.db.TriggerTagDao
 import com.kian.khup.core.trigger.TriggerTagger
+import com.kian.khup.core.usage.CategoryUsageCacheRefresher
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
@@ -29,6 +34,11 @@ class AiLocalToolRegistry @Inject constructor(
     private val attentionAnomalyDao: AttentionAnomalyDao,
     private val triggerTagDao: TriggerTagDao,
     private val triggerTagger: TriggerTagger,
+    private val contentThemeTagDao: ContentThemeTagDao,
+    private val contentThemeTagger: ContentThemeTagger,
+    private val informationCocoonAnalyzer: InformationCocoonAnalyzer,
+    private val categoryUsageCacheDao: CategoryUsageCacheDao,
+    private val categoryUsageCacheRefresher: CategoryUsageCacheRefresher,
     private val dailyReviewDao: DailyReviewDao,
 ) {
     suspend fun runFor(userText: String): AiToolRun? = withContext(Dispatchers.IO) {
@@ -38,6 +48,7 @@ class AiLocalToolRegistry @Inject constructor(
         val now = System.currentTimeMillis()
         val dayStart = startOfDayMs(now)
         runCatching { triggerTagger.refreshToday() }
+        runCatching { contentThemeTagger.refreshToday() }
 
         AiToolRun(
             generatedAt = now,
@@ -60,6 +71,7 @@ class AiLocalToolRegistry @Inject constructor(
             AiLocalToolName.GetTodayNotifications -> getTodayNotifications(call, dayStart, now)
             AiLocalToolName.GetTodayReview -> getTodayReview(call, dayStart)
             AiLocalToolName.GetTodayDiagnosis -> getTodayDiagnosis(call, dayStart, now)
+            AiLocalToolName.GetWeeklyContext -> getWeeklyContext(call, dayStart)
             AiLocalToolName.GetTodayContext -> getTodayContext(call, dayStart, now, userText)
         }
 
@@ -151,10 +163,71 @@ class AiLocalToolRegistry @Inject constructor(
         return AiToolResult(call, output)
     }
 
+    private suspend fun getWeeklyContext(call: AiToolCall, dayStart: Long): AiToolResult {
+        val since = dayStart - DAY_MS * 6
+        val dailyUsage = appSessionDao.loadDailyUsageSince(since)
+        val topApps = appSessionDao.loadTopUsageSince(since, 8)
+        val topTriggers = triggerTagDao.loadTagTotalsSince(since, 8)
+        val dailyTriggers = triggerTagDao.loadDailyTagTotalsSince(since)
+        val topThemes = contentThemeTagDao.loadThemeTotalsSince(since, 8)
+        val dailyThemes = contentThemeTagDao.loadDailyThemeTotalsSince(since)
+        val anomalies = attentionAnomalyDao.loadSince(since, 12)
+        val worstDay = dailyUsage.maxByOrNull { it.foregroundMs }
+
+        val output = buildString {
+            appendLine("range=\"${dayFmt.format(Date(since))} 至 ${dayFmt.format(Date(dayStart))}\"")
+            appendLine("worst_day=${worstDay?.let { "\"${dayFmt.format(Date(it.dayStartMs))} ${formatDuration(it.foregroundMs)}\"" } ?: "null"}")
+            appendLine("daily_usage=[")
+            dailyUsage.forEach {
+                appendLine("  {day=\"${dayFmt.format(Date(it.dayStartMs))}\", foreground=\"${formatDuration(it.foregroundMs)}\"}")
+            }
+            appendLine("]")
+            appendLine("top_apps_7d=[")
+            topApps.forEach {
+                appendLine("  {label=\"${usageStatsCollector.resolveAppLabel(it.packageName)}\", package=\"${it.packageName}\", foreground=\"${formatDuration(it.foregroundMs)}\"}")
+            }
+            appendLine("]")
+            appendLine("top_triggers_7d=[")
+            topTriggers.forEach {
+                appendLine("  {tag=\"${triggerTagLabel(it.tag)}\", rawTag=\"${it.tag}\", count=${it.count}, avgConfidence=${it.averageConfidence.toInt()}}")
+            }
+            appendLine("]")
+            appendLine("top_content_themes_7d=[")
+            topThemes.forEach {
+                appendLine("  {theme=\"${contentThemeLabel(it.theme)}\", rawTheme=\"${it.theme}\", count=${it.count}, avgConfidence=${it.averageConfidence.toInt()}}")
+            }
+            appendLine("]")
+            appendLine("daily_top_triggers=[")
+            dailyTriggers
+                .groupBy { it.dayStartMs }
+                .toSortedMap()
+                .forEach { (day, tags) ->
+                    val top = tags.maxByOrNull { it.count }
+                    appendLine("  {day=\"${dayFmt.format(Date(day))}\", tag=\"${top?.let { triggerTagLabel(it.tag) }.orEmpty()}\", count=${top?.count ?: 0}}")
+                }
+            appendLine("]")
+            appendLine("daily_top_content_themes=[")
+            dailyThemes
+                .groupBy { it.dayStartMs }
+                .toSortedMap()
+                .forEach { (day, themes) ->
+                    val top = themes.maxByOrNull { it.count }
+                    appendLine("  {day=\"${dayFmt.format(Date(day))}\", theme=\"${top?.let { contentThemeLabel(it.theme) }.orEmpty()}\", count=${top?.count ?: 0}}")
+                }
+            appendLine("]")
+            appendLine("top_anomalies_7d=[")
+            anomalies.forEach {
+                appendLine("  {day=\"${dayFmt.format(Date(it.dayStartMs))}\", type=\"${it.type}\", severity=\"${severityLabel(it.severity)}\", title=\"${it.title}\", detail=\"${it.detail}\"}")
+            }
+            append("]")
+        }
+        return AiToolResult(call, output)
+    }
+
     private suspend fun getTodayDiagnosis(call: AiToolCall, dayStart: Long, now: Long): AiToolResult {
         val totalMs = usageStatsCollector.getScreenInteractiveMs(dayStart, now).coerceAtMost(now - dayStart)
         val todayCategoryMs = usageStatsCollector.getTopApps(dayStart, now, Int.MAX_VALUE)
-            .groupBy { categoryForPackage(it.packageName) }
+            .groupBy { categoryUsageCacheRefresher.categoryForPackage(it.packageName) }
             .mapValues { entry -> entry.value.sumOf { it.foregroundMs } }
         val baselineByCategory = loadSevenDayCategoryMedians(dayStart)
         val categorySpikes = todayCategoryMs.mapNotNull { (category, todayMs) ->
@@ -173,17 +246,8 @@ class AiLocalToolRegistry @Inject constructor(
         }.sortedByDescending { it.optDouble("倍数") }
 
         val triggers = triggerTagDao.loadTagTotalsForDay(dayStart)
-        val totalTriggerCount = triggers.sumOf { it.count }.coerceAtLeast(0)
-        val dominant = triggers.maxByOrNull { it.count }
-        val cocoonRatio = if (dominant != null && totalTriggerCount > 0) {
-            dominant.count.toDouble() / totalTriggerCount.toDouble()
-        } else {
-            0.0
-        }
-        val cocoon = JSONObject()
-            .put("是否", totalTriggerCount >= MIN_TRIGGER_COUNT && cocoonRatio >= COCOON_RATIO)
-            .put("主导标签", dominant?.let { triggerTagLabel(it.tag) }.orEmpty())
-            .put("占比", if (totalTriggerCount > 0) "${(cocoonRatio * 100).toInt()}%" else "")
+        val contentThemes = contentThemeTagDao.loadThemeTotalsForDay(dayStart)
+        val cocoon = informationCocoonAnalyzer.analyzeToday(dayStart)
 
         val anomalies = attentionAnomalyDao.loadForDay(dayStart)
         val patterns = JSONArray()
@@ -209,6 +273,13 @@ class AiLocalToolRegistry @Inject constructor(
         val output = JSONObject()
             .put("总时长", formatDuration(totalMs))
             .put("类目超基线", JSONArray(categorySpikes))
+            .put("内容主题", JSONArray(contentThemes.take(8).map { theme ->
+                JSONObject()
+                    .put("主题", contentThemeLabel(theme.theme))
+                    .put("原始值", theme.theme)
+                    .put("次数", theme.count)
+                    .put("平均置信度", theme.averageConfidence.toInt())
+            }))
             .put("茧房收敛", cocoon)
             .put("异常模式", patterns)
             .put("异常性质", nature)
@@ -238,27 +309,14 @@ class AiLocalToolRegistry @Inject constructor(
         )
     }
 
-    private fun categoryForPackage(packageName: String): String =
-        when (packageName) {
-            in algorithmPackages -> "算法内容"
-            in socialPackages -> "社交"
-            in studyWorkPackages -> "学习工作"
-            in shoppingPackages -> "消费"
-            in financePackages -> "必要事务"
-            else -> "其他"
-        }
-
-    private fun loadSevenDayCategoryMedians(dayStart: Long): Map<String, Long> {
-        val values = mutableMapOf<String, MutableList<Long>>()
-        repeat(7) { index ->
-            val start = dayStart - DAY_MS * (index + 1)
-            val end = start + DAY_MS
-            usageStatsCollector.getTopApps(start, end, Int.MAX_VALUE)
-                .groupBy { categoryForPackage(it.packageName) }
-                .mapValues { entry -> entry.value.sumOf { it.foregroundMs } }
-                .forEach { (category, foregroundMs) ->
-                    if (foregroundMs > 0) values.getOrPut(category) { mutableListOf() } += foregroundMs
-                }
+    private suspend fun loadSevenDayCategoryMedians(dayStart: Long): Map<String, Long> {
+        categoryUsageCacheRefresher.refreshRecentDays(dayStart, days = 8)
+        val rows = categoryUsageCacheDao.loadInWindow(
+            startMs = dayStart - DAY_MS * 7,
+            endMs = dayStart,
+        )
+        val values = rows.groupBy { it.category }.mapValues { (_, rowsForCategory) ->
+            rowsForCategory.map { it.foregroundMs }
         }
         return values.mapValues { (_, list) -> median(list) }
     }
@@ -336,12 +394,25 @@ class AiLocalToolRegistry @Inject constructor(
             else -> tag
         }
 
+    private fun contentThemeLabel(theme: String): String =
+        when (theme) {
+            ContentThemeTagger.THEME_SOCIAL_RELATION -> "社交关系"
+            ContentThemeTagger.THEME_STUDY_COURSE -> "学习课程"
+            ContentThemeTagger.THEME_WORK_TASK -> "工作任务"
+            ContentThemeTagger.THEME_CONSUMPTION -> "消费种草"
+            ContentThemeTagger.THEME_ENTERTAINMENT -> "娱乐内容"
+            ContentThemeTagger.THEME_REWARD_LOOP -> "奖励循环"
+            ContentThemeTagger.THEME_CONFLICT_NEWS -> "争议新闻"
+            ContentThemeTagger.THEME_STATUS_ANXIETY -> "状态焦虑"
+            ContentThemeTagger.THEME_SPORTS_GAME -> "比赛观赛"
+            ContentThemeTagger.THEME_ALGORITHM_FEED -> "算法内容"
+            else -> theme
+        }
+
     companion object {
         val dayFmt = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
         val timeFmt = SimpleDateFormat("HH:mm", Locale.getDefault())
         private const val DAY_MS = 24L * 60L * 60L * 1000L
-        private const val MIN_TRIGGER_COUNT = 5
-        private const val COCOON_RATIO = 0.6
         private const val CATEGORY_SPIKE_RATIO = 1.8
         private const val MIN_BASELINE_MS = 10L * 60L * 1000L
         private const val MIN_SPIKE_MS = 20L * 60L * 1000L
@@ -432,6 +503,7 @@ enum class AiLocalToolName(val wireName: String) {
     GetTodayNotifications("get_today_notifications"),
     GetTodayReview("get_today_review"),
     GetTodayDiagnosis("get_today_diagnosis"),
+    GetWeeklyContext("get_weekly_context"),
     GetTodayContext("get_today_context"),
 }
 
@@ -439,6 +511,7 @@ private object AiToolSelector {
     fun select(text: String): List<AiToolCall> {
         val lower = text.lowercase(Locale.ROOT)
         val tool = when {
+            hasAny(lower, weeklyKeywords) -> AiLocalToolName.GetWeeklyContext
             hasAny(lower, contextKeywords) -> AiLocalToolName.GetTodayContext
             hasAny(lower, diagnosisKeywords) -> AiLocalToolName.GetTodayDiagnosis
             hasAny(lower, anomalyKeywords) -> AiLocalToolName.GetTodayAnomalies
@@ -456,6 +529,20 @@ private object AiToolSelector {
 
     private val contextKeywords = setOf("为什么失控", "今天怎么样", "今天状态", "守哪条防线", "明天计划")
     private val diagnosisKeywords = setOf("诊断", "异常性质", "创造性异常", "逃逸性异常", "茧房", "基线", "超基线")
+    private val weeklyKeywords = setOf(
+        "这周",
+        "本周",
+        "最近7天",
+        "最近 7 天",
+        "七天",
+        "哪天最失控",
+        "最大诱因",
+        "一周",
+        "week",
+        "7 days",
+        "seven days",
+        "biggest trigger",
+    )
     private val anomalyKeywords = setOf("异常", "风险", "失控")
     private val triggerKeywords = setOf("诱因", "牵着走", "为什么", "原因", "打断")
     private val notificationKeywords = setOf("通知", "消息最多", "谁发", "来源")

@@ -13,6 +13,13 @@ data class TriggerTagTotal(
     val averageConfidence: Double,
 )
 
+data class DailyTriggerTagTotal(
+    val dayStartMs: Long,
+    val tag: String,
+    val count: Int,
+    val averageConfidence: Double,
+)
+
 @Dao
 interface TriggerTagDao {
 
@@ -38,6 +45,25 @@ interface TriggerTagDao {
         ORDER BY count DESC, averageConfidence DESC
     """)
     suspend fun loadTagTotalsForDay(dayStartMs: Long): List<TriggerTagTotal>
+
+    @Query("""
+        SELECT tag, COUNT(*) AS count, AVG(confidence) AS averageConfidence
+        FROM trigger_tags
+        WHERE dayStartMs >= :sinceMs
+        GROUP BY tag
+        ORDER BY count DESC, averageConfidence DESC
+        LIMIT :limit
+    """)
+    suspend fun loadTagTotalsSince(sinceMs: Long, limit: Int): List<TriggerTagTotal>
+
+    @Query("""
+        SELECT dayStartMs, tag, COUNT(*) AS count, AVG(confidence) AS averageConfidence
+        FROM trigger_tags
+        WHERE dayStartMs >= :sinceMs
+        GROUP BY dayStartMs, tag
+        ORDER BY dayStartMs ASC, count DESC, averageConfidence DESC
+    """)
+    suspend fun loadDailyTagTotalsSince(sinceMs: Long): List<DailyTriggerTagTotal>
 
     @Query("""
         SELECT tag, COUNT(*) AS count, AVG(confidence) AS averageConfidence

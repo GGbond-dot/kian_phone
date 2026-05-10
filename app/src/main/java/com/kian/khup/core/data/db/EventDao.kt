@@ -22,6 +22,9 @@ interface EventDao {
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertAll(events: List<Event>): List<Long>
 
+    @Query("SELECT * FROM events WHERE eventId = :eventId LIMIT 1")
+    suspend fun getById(eventId: String): Event?
+
     @Query("SELECT * FROM events ORDER BY timestamp DESC LIMIT :limit")
     fun observeRecent(limit: Int = 200): Flow<List<Event>>
 

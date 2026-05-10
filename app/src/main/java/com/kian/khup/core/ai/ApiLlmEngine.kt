@@ -1,6 +1,7 @@
 package com.kian.khup.core.ai
 
 import android.util.Log
+import com.kian.khup.BuildConfig
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.Dispatchers
@@ -87,11 +88,18 @@ class ApiLlmEngine @Inject constructor(
                 ?.trim()
                 .orEmpty()
             require(content.isNotBlank()) { "API 返回为空。原始响应：$responseText" }
-            Log.i(TAG, "api chat result: $content")
+            logLlmOutput(content)
             content
         }.onFailure { error ->
             Log.e(TAG, "api chat failed", error)
         }
+    }
+
+    private fun logLlmOutput(content: String) {
+        // 隐私底线：完整 LLM 输出绝不能写 logcat。DEBUG 只写 redact 摘要；release 完全静默。
+        if (!BuildConfig.DEBUG) return
+        val redacted = content.take(80).replace(Regex("[\\r\\n]"), " ") + "..."
+        Log.d(TAG, "api chat response (redacted, ${content.length}ch): $redacted")
     }
 
     private companion object {
