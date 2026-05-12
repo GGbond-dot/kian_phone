@@ -12,13 +12,17 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.ArrowBack
+import androidx.compose.material.icons.automirrored.outlined.Send
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.ClearAll
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.History
+import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.Science
-import androidx.compose.material.icons.outlined.Send
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -28,7 +32,9 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -44,6 +50,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.kian.khup.BuildConfig
 import com.kian.khup.core.ai.AiProviderMode
 import com.kian.khup.core.data.db.entities.ChatSession
 import java.text.SimpleDateFormat
@@ -53,10 +60,14 @@ import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AiChatScreen(viewModel: AiChatViewModel = hiltViewModel()) {
+fun AiChatScreen(
+    onBack: () -> Unit,
+    viewModel: AiChatViewModel = hiltViewModel(),
+) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     var input by remember { mutableStateOf("") }
     var showHistory by remember { mutableStateOf(false) }
+    var showMenu by remember { mutableStateOf(false) }
     val listState = rememberLazyListState()
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val scope = rememberCoroutineScope()
@@ -67,53 +78,86 @@ fun AiChatScreen(viewModel: AiChatViewModel = hiltViewModel()) {
         }
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "返回")
+                    }
+                },
+                title = {
+                    Text(
+                        uiState.currentTitle,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                },
+                actions = {
+                    IconButton(onClick = { showMenu = true }) {
+                        Icon(Icons.Outlined.MoreVert, contentDescription = "更多")
+                    }
+                    DropdownMenu(
+                        expanded = showMenu,
+                        onDismissRequest = { showMenu = false },
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text("新建对话") },
+                            leadingIcon = { Icon(Icons.Outlined.Add, contentDescription = null) },
+                            enabled = !uiState.isGenerating,
+                            onClick = {
+                                showMenu = false
+                                viewModel.newSession()
+                            },
+                        )
+                        DropdownMenuItem(
+                            text = { Text("历史会话") },
+                            leadingIcon = { Icon(Icons.Outlined.History, contentDescription = null) },
+                            onClick = {
+                                showMenu = false
+                                showHistory = true
+                            },
+                        )
+                        DropdownMenuItem(
+                            text = { Text("清空当前会话") },
+                            leadingIcon = { Icon(Icons.Outlined.ClearAll, contentDescription = null) },
+                            enabled = uiState.messages.isNotEmpty() && !uiState.isGenerating,
+                            onClick = {
+                                showMenu = false
+                                viewModel.clearCurrentSession()
+                            },
+                        )
+                        DropdownMenuItem(
+                            text = { Text("刷新模型状态") },
+                            leadingIcon = { Icon(Icons.Outlined.Refresh, contentDescription = null) },
+                            onClick = {
+                                showMenu = false
+                                viewModel.refreshModelState()
+                            },
+                        )
+                        if (BuildConfig.DEBUG) {
+                            DropdownMenuItem(
+                                text = { Text("运行自检") },
+                                leadingIcon = { Icon(Icons.Outlined.Science, contentDescription = null) },
+                                enabled = !uiState.isGenerating,
+                                onClick = {
+                                    showMenu = false
+                                    viewModel.runSmokeTest()
+                                },
+                            )
+                        }
+                    }
+                },
+            )
+        },
+    ) { padding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    uiState.currentTitle,
-                    style = MaterialTheme.typography.headlineSmall,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-            Row {
-                IconButton(
-                    onClick = viewModel::newSession,
-                    enabled = !uiState.isGenerating,
-                ) {
-                    Icon(Icons.Outlined.Add, contentDescription = "新建聊天")
-                }
-                IconButton(onClick = { showHistory = true }) {
-                    Icon(Icons.Outlined.History, contentDescription = "历史聊天")
-                }
-                IconButton(
-                    onClick = viewModel::clearCurrentSession,
-                    enabled = uiState.messages.isNotEmpty() && !uiState.isGenerating,
-                ) {
-                    Icon(Icons.Outlined.ClearAll, contentDescription = "清空当前会话")
-                }
-                IconButton(onClick = viewModel::refreshModelState) {
-                    Icon(Icons.Outlined.Refresh, contentDescription = "刷新模型状态")
-                }
-                IconButton(
-                    onClick = viewModel::runSmokeTest,
-                    enabled = !uiState.isGenerating,
-                ) {
-                    Icon(Icons.Outlined.Science, contentDescription = "运行自检")
-                }
-            }
-        }
-
         LazyColumn(
             modifier = Modifier
                 .weight(1f)
@@ -171,9 +215,10 @@ fun AiChatScreen(viewModel: AiChatViewModel = hiltViewModel()) {
                 },
                 enabled = input.isNotBlank() && !uiState.isGenerating,
             ) {
-                Icon(Icons.Outlined.Send, contentDescription = "发送")
+                Icon(Icons.AutoMirrored.Outlined.Send, contentDescription = "发送")
             }
         }
+    }
     }
 
     if (showHistory) {
@@ -328,4 +373,3 @@ private fun ChatMessageCard(message: ChatMessage) {
         }
     }
 }
-

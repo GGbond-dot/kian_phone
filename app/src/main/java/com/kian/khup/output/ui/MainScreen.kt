@@ -42,27 +42,30 @@ fun MainScreen() {
     val navController = rememberNavController()
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route
+    val showBottomBar = Tab.entries.any { it.route == currentRoute }
 
     Scaffold(
         bottomBar = {
-            NavigationBar {
-                Tab.entries.forEach { tab ->
-                    val selected = backStackEntry?.destination?.hierarchy
-                        ?.any { it.route == tab.route } == true
-                    NavigationBarItem(
-                        selected = selected,
-                        onClick = {
-                            if (currentRoute != tab.route) {
-                                navController.navigate(tab.route) {
-                                    popUpTo(navController.graph.startDestinationId) { saveState = true }
-                                    launchSingleTop = true
-                                    restoreState = true
+            if (showBottomBar) {
+                NavigationBar {
+                    Tab.entries.forEach { tab ->
+                        val selected = backStackEntry?.destination?.hierarchy
+                            ?.any { it.route == tab.route } == true
+                        NavigationBarItem(
+                            selected = selected,
+                            onClick = {
+                                if (currentRoute != tab.route) {
+                                    navController.navigate(tab.route) {
+                                        popUpTo(navController.graph.startDestinationId) { saveState = true }
+                                        launchSingleTop = true
+                                        restoreState = true
+                                    }
                                 }
-                            }
-                        },
-                        icon = { Icon(tab.icon, contentDescription = tab.label) },
-                        label = { Text(tab.label) },
-                    )
+                            },
+                            icon = { Icon(tab.icon, contentDescription = tab.label) },
+                            label = { Text(tab.label) },
+                        )
+                    }
                 }
             }
         }
@@ -92,7 +95,7 @@ fun MainScreen() {
                     onNavigateToAi = { navigateToAiWithBridge(navController) },
                 )
             }
-            composable(ROUTE_AI) { AiChatScreen() }
+            composable(ROUTE_AI) { AiChatScreen(onBack = { navController.popBackStack() }) }
             composable(Tab.Settings.route) { SettingsScreen() }
             composable("notifications") {
                 NotificationsScreen(onBack = { navController.popBackStack() })
