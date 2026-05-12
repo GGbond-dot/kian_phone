@@ -72,6 +72,17 @@ class HistoryViewModel @Inject constructor(
         aiContextBridge.setPending("这周相比上周，$narrationDiff。能解读一下吗？")
     }
 
+    fun discussReviewOverview(periodDays: Int, storyText: String) {
+        aiContextBridge.setPending(
+            """
+                这是 KHUP 给我的这 $periodDays 天回顾：
+                $storyText
+
+                帮我看看？
+            """.trimIndent()
+        )
+    }
+
     data class TrendsData(
         val periodDays: Int = 7,
         val screenTimeByDay: List<DailyUsageTotal> = emptyList(),

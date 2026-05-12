@@ -5,7 +5,11 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -18,6 +22,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.kian.khup.output.ui.history.tabs.PatternsTab
 import com.kian.khup.output.ui.history.tabs.SuggestionsTab
 import com.kian.khup.output.ui.history.tabs.TrendsTab
+import com.kian.khup.output.ui.theme.Accent
+import com.kian.khup.output.ui.theme.OnAccent
 import com.kian.khup.output.ui.theme.Spacing
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -36,9 +42,22 @@ fun HistoryScreen(
     val storyNarration by viewModel.storyNarrationState.collectAsStateWithLifecycle()
     val periodDays by viewModel.periodDaysState.collectAsStateWithLifecycle()
     val linkedSessions by viewModel.linkedSessionsState.collectAsStateWithLifecycle()
+    val storyText = storyNarration ?: buildStoryFallback(trends)
 
     Scaffold(
         topBar = { TopAppBar(title = { Text("回顾", style = MaterialTheme.typography.titleLarge) }) },
+        floatingActionButton = {
+            FloatingActionButton(
+                onClick = {
+                    viewModel.discussReviewOverview(periodDays, storyText)
+                    onNavigateToAi()
+                },
+                containerColor = Accent,
+                contentColor = OnAccent,
+            ) {
+                Icon(Icons.Outlined.AutoAwesome, contentDescription = "和 AI 聊聊")
+            }
+        },
     ) { padding ->
         LazyColumn(
             modifier = Modifier
@@ -54,7 +73,7 @@ fun HistoryScreen(
             item {
                 SectionTitle("这 $periodDays 天的故事")
                 Text(
-                    text = storyNarration ?: buildStoryFallback(trends),
+                    text = storyText,
                     style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.onSurface,
                 )
