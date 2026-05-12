@@ -108,7 +108,7 @@ class HistoryViewModel @Inject constructor(
     }
 
     fun setPeriodDays(days: Int) {
-        if (days != 7 && days != 30) return
+        if (days != 7 && days != 30 && days != 90) return
         if (days == _periodDays.value) return
         _periodDays.value = days
     }

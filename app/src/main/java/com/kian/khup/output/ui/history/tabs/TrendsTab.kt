@@ -19,6 +19,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.unit.dp
 import com.kian.khup.output.ui.history.HistoryViewModel.TrendsData
 import com.kian.khup.output.ui.theme.Spacing
+import com.kian.khup.output.ui.theme.TextSecondary
 
 @Composable
 fun TrendsTab(
@@ -36,13 +37,7 @@ fun TrendsTab(
         PeriodToggle(periodDays = periodDays, onPeriodChange = onPeriodChange)
 
         SummaryRow("${periodDays}天写过几段", trends.checkInCount.toString()) // TODO: strings.xml
-        SummaryRow(
-            label = "已接受比例",
-            value = if (trends.totalFeedbackCount > 0)
-                "${trends.acceptedCount * 100 / trends.totalFeedbackCount}%"
-            else "—",
-        )
-        SummaryRow("接受了 / 共", "${trends.acceptedCount} / ${trends.totalFeedbackCount}") // TODO
+        SummaryRow("建议反馈", "接受了 ${trends.acceptedCount} / 共 ${trends.totalFeedbackCount}") // TODO
 
         if (trends.screenTimeByDay.isNotEmpty()) {
             Text(
@@ -75,6 +70,11 @@ private fun PeriodToggle(
             onClick = { onPeriodChange(30) },
             label = { Text("30天") }, // TODO: strings.xml
         )
+        FilterChip(
+            selected = periodDays == 90,
+            onClick = { onPeriodChange(90) },
+            label = { Text("90天") }, // TODO: strings.xml
+        )
     }
 }
 
@@ -88,7 +88,7 @@ private fun SummaryRow(label: String, value: String) {
         Text(
             value,
             style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.primary,
+            color = TextSecondary,
         )
     }
 }
