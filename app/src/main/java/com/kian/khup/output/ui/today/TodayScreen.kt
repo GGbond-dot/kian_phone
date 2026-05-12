@@ -33,6 +33,7 @@ import com.kian.khup.output.ui.theme.TextSecondary
 import com.kian.khup.output.ui.today.TodayViewModel.NavigationEvent
 import com.kian.khup.output.ui.today.components.AnomalySuggestionCard
 import com.kian.khup.output.ui.today.components.MiniObservationCard
+import com.kian.khup.output.ui.today.components.PlanFoldStripe
 import com.kian.khup.output.ui.today.components.QuickCheckInCard
 import java.time.LocalDate
 import java.time.LocalTime
@@ -45,7 +46,7 @@ fun TodayScreen(
     @Suppress("UNUSED_PARAMETER") onNavigateToSettings: () -> Unit,
     onNavigateToHistory: () -> Unit,
     onNavigateToNotifications: () -> Unit,
-    @Suppress("UNUSED_PARAMETER") onNavigateToDailyPlan: () -> Unit,
+    onNavigateToDailyPlan: () -> Unit,
     @Suppress("UNUSED_PARAMETER") onNavigateToAppUsage: () -> Unit,
     onNavigateToAi: () -> Unit,
     viewModel: TodayViewModel = hiltViewModel(),
@@ -82,6 +83,13 @@ fun TodayScreen(
                     onPostpone = viewModel::postponeSuggestion,
                     onReject = viewModel::openRejectDialog,
                     onDiscuss = viewModel::discussSuggestion,
+                )
+            }
+            item {
+                PlanFoldStripe(
+                    todayPlans = state.todayPlans,
+                    onAddManual = onNavigateToDailyPlan,
+                    onExpandFull = onNavigateToDailyPlan,
                 )
             }
             item {

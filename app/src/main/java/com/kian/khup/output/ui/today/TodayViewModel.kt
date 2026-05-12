@@ -10,6 +10,7 @@ import com.kian.khup.core.data.db.EventDao
 import com.kian.khup.core.data.db.EventType
 import com.kian.khup.core.data.db.TodayNarrationDao
 import com.kian.khup.core.data.db.entities.AnomalySuggestion
+import com.kian.khup.core.data.db.entities.DailyPlan
 import com.kian.khup.core.data.repository.AnomalySuggestionRepository
 import com.kian.khup.core.data.repository.BehaviorReportRepository
 import com.kian.khup.core.data.repository.DailyPlanRepository
@@ -65,6 +66,7 @@ class TodayViewModel @Inject constructor(
         val isSubmitting: Boolean = false,
         val miniObservation: MiniObservation = MiniObservation(),
         val todayNarration: String? = null,
+        val todayPlans: List<DailyPlan> = emptyList(),
         val rejectDialogState: RejectDialogState? = null,
         val navigationEvent: NavigationEvent? = null,
     )
@@ -83,6 +85,15 @@ class TodayViewModel @Inject constructor(
         observeSuggestion()
         observeMiniStats(todayMs)
         observeTodayNarration(todayMs)
+        observeTodayPlans()
+    }
+
+    private fun observeTodayPlans() {
+        viewModelScope.launch {
+            dailyPlanRepository.observeToday().collect { plans ->
+                _uiState.update { it.copy(todayPlans = plans) }
+            }
+        }
     }
 
     private fun observeTodayNarration(todayMs: Long) {
