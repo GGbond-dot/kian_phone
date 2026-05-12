@@ -2,6 +2,7 @@ package com.kian.khup.output.ui.today
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.kian.khup.common.util.formatDuration
 import com.kian.khup.common.util.todayStartLocalMs
 import com.kian.khup.core.ai.AiContextBridge
 import com.kian.khup.core.data.db.AppSessionDao
@@ -199,6 +200,14 @@ class TodayViewModel @Inject constructor(
         }
     }
 
+    fun discussToday() {
+        val context = buildTodayContext()
+        viewModelScope.launch {
+            aiContextBridge.setPending(context)
+            _uiState.update { it.copy(navigationEvent = NavigationEvent.GoToAi) }
+        }
+    }
+
     private fun buildDiscussContext(suggestion: AnomalySuggestion): String = """
         我想聊聊这条建议为什么给我。
 
@@ -206,6 +215,19 @@ class TodayViewModel @Inject constructor(
 
         你说是因为：${suggestion.whyText}
     """.trimIndent()
+
+    private fun buildTodayContext(): String {
+        val state = _uiState.value
+        val observation = state.todayNarration?.trim()?.takeIf { it.isNotBlank() }
+            ?: with(state.miniObservation) {
+                "你今天看屏幕 ${formatDuration(screenTimeMs)}，收到 $notificationCount 条通知，写过 $checkInCount 段。"
+            }
+        return """
+            $observation
+
+            帮我看看？
+        """.trimIndent()
+    }
 
     fun postponeSuggestion(id: Long) {
         viewModelScope.launch {

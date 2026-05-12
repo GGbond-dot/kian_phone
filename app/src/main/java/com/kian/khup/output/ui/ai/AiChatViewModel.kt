@@ -49,8 +49,8 @@ class AiChatViewModel @Inject constructor(
             refreshUserContext(_uiState.value.settings.providerMode)
         }
 
-        // 入口分流：来自 [不适合] → 和 AI 聊聊 时，AiContextBridge 里有预填上下文。
-        // 这种情况下不复用最近的会话，而是新建一条带 linkedSuggestionId 的 ChatSession，
+        // 入口分流：来自建议卡 / FAB 的 AI 入口时，AiContextBridge 里有预填上下文。
+        // 这种情况下不复用最近的会话，而是新建一条 ChatSession，
         // 然后自动把预填消息当作用户输入发出。
         // 详见 worklog/技术方案_行为线MVP/07_补丁_不适合后AI讨论.md §5 §9.3。
         val pending = aiContextBridge.consumePending()
@@ -118,7 +118,7 @@ class AiChatViewModel @Inject constructor(
         val now = System.currentTimeMillis()
         val sessionId = chatSessionDao.insert(
             ChatSession(
-                title = "讨论被拒建议",
+                title = if (pending.suggestionId == null) "聊聊今天" else "讨论被拒建议",
                 createdAt = now,
                 updatedAt = now,
                 lastMessagePreview = pending.message.take(PREVIEW_LEN),

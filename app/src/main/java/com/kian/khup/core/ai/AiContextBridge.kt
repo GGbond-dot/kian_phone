@@ -14,17 +14,17 @@ import kotlinx.coroutines.flow.getAndUpdate
 @Singleton
 class AiContextBridge @Inject constructor() {
 
-    data class PendingContext(val message: String, val suggestionId: Long)
+    data class PendingContext(val message: String, val suggestionId: Long?)
 
     private val _pending = MutableStateFlow<PendingContext?>(null)
     private val _sessionToOpen = MutableStateFlow<Long?>(null)
 
     /**
      * TodayViewModel 写入：用户点"和 AI 聊聊"时调用。
-     * 同时携带 suggestionId 以便 AiViewModel 给新建的 ChatSession 打 linkedSuggestionId。
+     * 建议卡入口携带 suggestionId；FAB 入口没有具体建议，传 null。
      * 下次 AiChatViewModel 初始化时会消费这条消息。
      */
-    fun setPending(message: String, suggestionId: Long) {
+    fun setPending(message: String, suggestionId: Long? = null) {
         _pending.value = PendingContext(message.trim().take(MAX_MESSAGE_LEN), suggestionId)
     }
 
