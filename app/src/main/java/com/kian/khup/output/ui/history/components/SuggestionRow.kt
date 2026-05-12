@@ -82,7 +82,7 @@ fun SuggestionRow(
 private fun statusLabel(status: String) = when (status) { // TODO: strings.xml
     "ACCEPTED" -> "已接受"
     "PENDING" -> "待处理"
-    "POSTPONED" -> "已换"
+    "POSTPONED" -> "换了一条"
     "REJECTED" -> "不适合"
     else -> status
 }

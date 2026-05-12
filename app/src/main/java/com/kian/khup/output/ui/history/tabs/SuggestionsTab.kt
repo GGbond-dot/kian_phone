@@ -20,7 +20,7 @@ private val STATUS_ORDER = listOf("PENDING", "ACCEPTED", "POSTPONED", "REJECTED"
 private val STATUS_LABELS = mapOf(
     "PENDING" to "待处理",
     "ACCEPTED" to "已接受",
-    "POSTPONED" to "已换",
+    "POSTPONED" to "换了一条",
     "REJECTED" to "不适合",
 )
 

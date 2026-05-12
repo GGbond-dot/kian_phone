@@ -38,14 +38,14 @@ fun TrendsTab(
     ) {
         PeriodToggle(periodDays = periodDays, onPeriodChange = onPeriodChange)
 
-        SummaryRow("${periodDays}天检入次数", trends.checkInCount.toString()) // TODO: strings.xml
+        SummaryRow("${periodDays}天写过几段", trends.checkInCount.toString()) // TODO: strings.xml
         SummaryRow(
-            label = "接受率",
+            label = "已接受比例",
             value = if (trends.totalFeedbackCount > 0)
                 "${trends.acceptedCount * 100 / trends.totalFeedbackCount}%"
             else "—",
         )
-        SummaryRow("接受次数 / 总反馈", "${trends.acceptedCount} / ${trends.totalFeedbackCount}") // TODO
+        SummaryRow("接受了 / 共", "${trends.acceptedCount} / ${trends.totalFeedbackCount}") // TODO
 
         if (trends.screenTimeByDay.isNotEmpty()) {
             Text(

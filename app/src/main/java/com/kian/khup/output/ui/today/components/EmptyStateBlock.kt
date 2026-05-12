@@ -11,7 +11,7 @@ import androidx.compose.ui.unit.dp
 @Composable
 fun EmptyStateBlock(modifier: Modifier = Modifier) {
     Text(
-        text = "今天还没有可说的回归值信号。\n要不要写一段你现在的处境？",
+        text = "今天还没攒够数据。写一段你现在在做什么，我来帮你看看。",
         style = MaterialTheme.typography.bodyMedium,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = modifier.padding(vertical = 8.dp),

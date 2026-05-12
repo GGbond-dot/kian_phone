@@ -85,25 +85,6 @@ fun AiChatScreen(viewModel: AiChatViewModel = hiltViewModel()) {
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
-                val localReady = uiState.modelState.isReady
-                val apiReady = uiState.settings.hasApiConfig
-                val (subtitle, ok) = when (uiState.settings.providerMode) {
-                    AiProviderMode.ApiOnly ->
-                        (if (apiReady) "API 通道:已配置" else "API 通道:未配置(去 Settings 配置)") to apiReady
-                    AiProviderMode.LocalOnly ->
-                        (if (localReady) "本地模型:就绪" else "本地模型:未找到(去 Settings 配置)") to localReady
-                    AiProviderMode.LocalFirst -> when {
-                        localReady && apiReady -> "本地就绪 · API 兜底" to true
-                        localReady -> "本地就绪" to true
-                        apiReady -> "本地未就绪 · 走 API" to true
-                        else -> "未配置(去 Settings 配置)" to false
-                    }
-                }
-                Text(
-                    subtitle,
-                    style = MaterialTheme.typography.labelLarge,
-                    color = if (ok) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
-                )
             }
             Row {
                 IconButton(
@@ -325,11 +306,6 @@ private fun EmptyChatCard() {
     ) {
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text("先试一句简单问题。", style = MaterialTheme.typography.titleMedium)
-            Text(
-                "API 配置和模型路径在 Settings 页里调整。",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
         }
     }
 }
@@ -337,7 +313,6 @@ private fun EmptyChatCard() {
 @Composable
 private fun ChatMessageCard(message: ChatMessage) {
     val isUser = message.role == ChatRole.User
-    val title = if (isUser) "你" else "AI"
     val containerColor = if (isUser) {
         MaterialTheme.colorScheme.primaryContainer
     } else {
@@ -349,7 +324,6 @@ private fun ChatMessageCard(message: ChatMessage) {
         colors = CardDefaults.cardColors(containerColor = containerColor),
     ) {
         Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text(title, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
             Text(message.text, style = MaterialTheme.typography.bodyMedium)
         }
     }

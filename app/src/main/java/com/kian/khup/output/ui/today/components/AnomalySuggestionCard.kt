@@ -37,7 +37,7 @@ fun AnomalySuggestionCard(
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Text(
-                text = "今日异常值", // TODO: strings.xml
+                text = "我想到一件事", // TODO: strings.xml
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.primary,
             )

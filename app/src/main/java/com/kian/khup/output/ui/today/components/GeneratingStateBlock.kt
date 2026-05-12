@@ -25,7 +25,7 @@ fun GeneratingStateBlock(modifier: Modifier = Modifier) {
         label = "shimmer_alpha",
     )
     Text(
-        text = "正在观察...",
+        text = "稍等，让我想想……",
         style = MaterialTheme.typography.bodyMedium,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = modifier

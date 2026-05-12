@@ -33,8 +33,8 @@ fun MiniObservationCard(
         ) {
             Text("今日观察", style = MaterialTheme.typography.titleSmall) // TODO: strings.xml
             ObservationRow("屏幕时间", formatDuration(observation.screenTimeMs)) // TODO
-            ObservationRow("注意力异常", "${observation.anomalyCount} 次") // TODO
-            ObservationRow("检入次数", "${observation.checkInCount} 次") // TODO
+            ObservationRow("状态变化", "${observation.anomalyCount} 次") // TODO
+            ObservationRow("写过几段", "${observation.checkInCount} 次") // TODO
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,

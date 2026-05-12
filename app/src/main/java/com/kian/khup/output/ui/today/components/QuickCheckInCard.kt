@@ -33,7 +33,7 @@ fun QuickCheckInCard(
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             Text(
-                text = "现在是什么处境？", // TODO: strings.xml
+                text = "现在在做什么？", // TODO: strings.xml
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -64,7 +64,7 @@ fun QuickCheckInCard(
                     onClick = onSubmit,
                     enabled = text.isNotBlank() && !isSubmitting,
                 ) {
-                    Text("提交 →") // TODO: strings.xml
+                    Text("发给 KHUP") // TODO: strings.xml
                 }
             }
         }

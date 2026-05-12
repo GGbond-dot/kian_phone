@@ -210,7 +210,7 @@ class TodayViewModel @Inject constructor(
     private fun buildAiContext(suggestion: AnomalySuggestion, reason: String?): String {
         val reasonText = if (reason.isNullOrBlank()) "未说明" else reason
         return """
-            我刚拒绝了一条异常值建议，想和你聊聊。
+            我刚拒绝了一条建议，想和你聊聊。
 
             建议标题：「${suggestion.title}」
             建议内容：「${suggestion.actionText}」
