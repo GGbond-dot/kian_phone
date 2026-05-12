@@ -22,6 +22,7 @@ import com.kian.khup.output.ui.theme.Spacing
 @Composable
 fun PatternsTab(
     patterns: List<AttentionAnomaly>,
+    onAskAi: (AttentionAnomaly) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     var selectedId by remember { mutableStateOf<Long?>(null) }
@@ -41,7 +42,11 @@ fun PatternsTab(
             verticalArrangement = Arrangement.spacedBy(Spacing.xxs),
         ) {
             patterns.forEach { anomaly ->
-                PatternRow(anomaly = anomaly, onClick = { selectedId = anomaly.id })
+                PatternRow(
+                    anomaly = anomaly,
+                    onClick = { selectedId = anomaly.id },
+                    onAskAi = { onAskAi(anomaly) },
+                )
                 HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
             }
         }

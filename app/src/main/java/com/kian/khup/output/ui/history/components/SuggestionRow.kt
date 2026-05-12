@@ -8,7 +8,11 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.HelpOutline
 import androidx.compose.material3.AssistChip
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -28,6 +32,7 @@ fun SuggestionRow(
     onClick: () -> Unit,
     linkedSessionId: Long? = null,
     onOpenChatSession: (Long) -> Unit = {},
+    onAskAi: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     Column(
@@ -64,10 +69,15 @@ fun SuggestionRow(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-            AssistChip(
-                onClick = {},
-                label = { Text(statusLabel(suggestion.status), style = MaterialTheme.typography.labelSmall) },
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                AssistChip(
+                    onClick = {},
+                    label = { Text(statusLabel(suggestion.status), style = MaterialTheme.typography.labelSmall) },
+                )
+                IconButton(onClick = onAskAi) {
+                    Icon(Icons.AutoMirrored.Outlined.HelpOutline, contentDescription = "问 AI")
+                }
+            }
         }
         // 仅 REJECTED 后通过 [和 AI 聊聊] 产生的建议会有 linkedSessionId
         if (linkedSessionId != null) {

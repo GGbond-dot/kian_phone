@@ -71,7 +71,13 @@ fun HistoryScreen(
 
             item {
                 SectionTitle("反复出现的模式")
-                PatternsTab(patterns = patterns)
+                PatternsTab(
+                    patterns = patterns,
+                    onAskAi = { anomaly ->
+                        viewModel.discussFromReview(anomaly)
+                        onNavigateToAi()
+                    },
+                )
             }
 
             item {
@@ -80,6 +86,10 @@ fun HistoryScreen(
                     suggestions = suggestions,
                     linkedSessions = linkedSessions,
                     onOpenChatSession = onOpenChatSession,
+                    onAskAi = { suggestion ->
+                        viewModel.discussFromReview(suggestion)
+                        onNavigateToAi()
+                    },
                 )
             }
         }

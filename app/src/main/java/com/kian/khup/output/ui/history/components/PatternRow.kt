@@ -6,7 +6,10 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.AssistChip
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.HelpOutline
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -22,6 +25,7 @@ import java.time.format.DateTimeFormatter
 fun PatternRow(
     anomaly: AttentionAnomaly,
     onClick: () -> Unit,
+    onAskAi: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     Row(
@@ -46,10 +50,9 @@ fun PatternRow(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
-        AssistChip(
-            onClick = {},
-            label = { Text(anomaly.type, style = MaterialTheme.typography.labelSmall) },
-        )
+        IconButton(onClick = onAskAi) {
+            Icon(Icons.AutoMirrored.Outlined.HelpOutline, contentDescription = "问 AI")
+        }
     }
 }
 

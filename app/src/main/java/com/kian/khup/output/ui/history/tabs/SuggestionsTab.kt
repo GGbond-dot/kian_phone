@@ -28,6 +28,7 @@ fun SuggestionsTab(
     suggestions: Map<String, List<AnomalySuggestion>>,
     linkedSessions: Map<Long, Long> = emptyMap(),
     onOpenChatSession: (Long) -> Unit = {},
+    onAskAi: (AnomalySuggestion) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     if (suggestions.isEmpty()) {
@@ -60,6 +61,7 @@ fun SuggestionsTab(
                     onClick = {},
                     linkedSessionId = linkedSessionId,
                     onOpenChatSession = onOpenChatSession,
+                    onAskAi = { onAskAi(suggestion) },
                 )
                 HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
             }
