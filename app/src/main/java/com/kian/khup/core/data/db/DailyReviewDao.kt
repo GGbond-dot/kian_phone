@@ -21,4 +21,10 @@ interface DailyReviewDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(review: DailyReview): Long
+
+    @Query("DELETE FROM daily_review WHERE dayStartMs < :beforeMs")
+    suspend fun deleteOlderThan(beforeMs: Long): Int
+
+    @Query("DELETE FROM daily_review")
+    suspend fun deleteAll(): Int
 }

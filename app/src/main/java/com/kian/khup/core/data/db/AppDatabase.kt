@@ -20,6 +20,7 @@ import com.kian.khup.core.data.db.entities.HourlySummary
 import com.kian.khup.core.data.db.entities.RuleState
 import com.kian.khup.core.data.db.entities.TriggerTag
 import com.kian.khup.core.data.db.entities.UserFeedback
+import com.kian.khup.core.data.db.entities.UserMemory
 
 @Database(
     entities = [
@@ -39,9 +40,10 @@ import com.kian.khup.core.data.db.entities.UserFeedback
         ContentThemeTag::class,
         CategoryUsageCache::class,
         UserFeedback::class,
+        UserMemory::class,
         DailyPlan::class,
     ],
-    version = 12,
+    version = 14,
     exportSchema = true,
 )
 @TypeConverters(Converters::class)
@@ -62,5 +64,6 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun contentThemeTagDao(): ContentThemeTagDao
     abstract fun categoryUsageCacheDao(): CategoryUsageCacheDao
     abstract fun dailyPlanDao(): DailyPlanDao
+    abstract fun userMemoryDao(): UserMemoryDao
     // TODO Phase 2+：RuleStateDao
 }

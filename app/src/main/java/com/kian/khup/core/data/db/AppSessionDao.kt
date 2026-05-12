@@ -104,6 +104,25 @@ interface AppSessionDao {
     """)
     suspend fun getUsageForPackagesSince(packageNames: List<String>, sinceMs: Long): Long
 
+    @Query("""
+        SELECT packageName, SUM(COALESCE(durationMs, 0)) AS foregroundMs
+        FROM app_sessions
+        WHERE startTime >= :startMs AND startTime < :endMs
+        GROUP BY packageName
+        HAVING foregroundMs > 0
+        ORDER BY foregroundMs DESC
+    """)
+    fun observeUsageSummary(startMs: Long, endMs: Long): Flow<List<AppUsageTotal>>
+
     @Query("DELETE FROM app_sessions WHERE COALESCE(durationMs, 0) > :maxDurationMs")
     suspend fun deleteSessionsExceedingDuration(maxDurationMs: Long): Int
+
+    @Query("DELETE FROM app_sessions WHERE startTime < :beforeMs")
+    suspend fun deleteOlderThan(beforeMs: Long): Int
+
+    @Query("DELETE FROM app_sessions")
+    suspend fun deleteAll(): Int
+
+    @Query("SELECT * FROM app_sessions WHERE startTime >= :sinceMs ORDER BY startTime DESC")
+    suspend fun getSince(sinceMs: Long): List<AppSession>
 }

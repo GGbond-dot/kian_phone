@@ -63,4 +63,10 @@ interface ContentThemeTagDao {
         ORDER BY dayStartMs ASC, count DESC, averageConfidence DESC
     """)
     suspend fun loadDailyThemeTotalsSince(sinceMs: Long): List<DailyContentThemeTotal>
+
+    @Query("DELETE FROM content_theme_tags WHERE createdAt < :beforeMs")
+    suspend fun deleteOlderThan(beforeMs: Long): Int
+
+    @Query("DELETE FROM content_theme_tags")
+    suspend fun deleteAll(): Int
 }

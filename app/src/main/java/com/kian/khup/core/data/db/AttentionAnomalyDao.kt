@@ -79,4 +79,24 @@ interface AttentionAnomalyDao {
         """
     )
     fun observeByStatus(status: String): Flow<List<AttentionAnomaly>>
+
+    /** Part C：最活跃的回归值模式，用于 AI 对话上下文摘要。 */
+    @Query(
+        """
+        SELECT * FROM attention_anomaly
+        WHERE status = 'ACTIVE' AND lastSeenAt >= :sinceMs
+        ORDER BY frequency DESC, lastSeenAt DESC
+        LIMIT :limit
+        """
+    )
+    suspend fun getActivePatternsSince(sinceMs: Long, limit: Int): List<AttentionAnomaly>
+
+    @Query("DELETE FROM attention_anomaly WHERE createdAt < :beforeMs")
+    suspend fun deleteOlderThan(beforeMs: Long): Int
+
+    @Query("DELETE FROM attention_anomaly")
+    suspend fun deleteAll(): Int
+
+    @Query("SELECT * FROM attention_anomaly ORDER BY createdAt DESC")
+    suspend fun getAll(): List<AttentionAnomaly>
 }

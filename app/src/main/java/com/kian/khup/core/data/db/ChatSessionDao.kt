@@ -29,4 +29,21 @@ interface ChatSessionDao {
 
     @Query("DELETE FROM chat_session WHERE id = :id")
     suspend fun deleteById(id: Long)
+
+    /** 历史建议详情：找到由该建议（被拒后）跳转到 AI 聊聊产生的会话。 */
+    @Query("SELECT * FROM chat_session WHERE linkedSuggestionId = :suggestionId ORDER BY createdAt DESC LIMIT 1")
+    suspend fun findByLinkedSuggestion(suggestionId: Long): ChatSession?
+
+    /** 同上的 Flow 版本，供 HistoryViewModel 在多条建议上批量观察使用。 */
+    @Query("SELECT * FROM chat_session WHERE linkedSuggestionId IS NOT NULL")
+    fun observeLinkedSessions(): Flow<List<ChatSession>>
+
+    @Query("DELETE FROM chat_session WHERE updatedAt < :beforeMs")
+    suspend fun deleteOlderThan(beforeMs: Long): Int
+
+    @Query("DELETE FROM chat_session")
+    suspend fun deleteAll(): Int
+
+    @Query("SELECT * FROM chat_session ORDER BY updatedAt DESC")
+    suspend fun getAll(): List<ChatSession>
 }

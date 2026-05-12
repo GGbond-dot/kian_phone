@@ -13,16 +13,20 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.Remove
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -44,6 +48,7 @@ import com.kian.khup.core.ai.AiProviderMode
 import com.kian.khup.core.ai.AiSettings
 import com.kian.khup.core.ai.LlmModelState
 import com.kian.khup.core.data.repository.InterventionSettings
+import kotlinx.coroutines.delay
 
 /**
  * 权限引导主页面。MIUI 上每个权限都需要用户手动到设置里开，
@@ -56,6 +61,26 @@ fun SettingsScreen(viewModel: SettingsViewModel = hiltViewModel()) {
     val interventionSettings by viewModel.interventionSettings.collectAsStateWithLifecycle()
     val aiSettings by viewModel.aiSettings.collectAsStateWithLifecycle()
     val aiModelState by viewModel.aiModelState.collectAsStateWithLifecycle()
+    val clearState by viewModel.clearState.collectAsStateWithLifecycle()
+    val exportState by viewModel.exportState.collectAsStateWithLifecycle()
+
+    LaunchedEffect(clearState) {
+        if (clearState is SettingsViewModel.ClearState.Done ||
+            clearState is SettingsViewModel.ClearState.Error
+        ) {
+            delay(2000)
+            viewModel.resetClearState()
+        }
+    }
+
+    LaunchedEffect(exportState) {
+        if (exportState is SettingsViewModel.ExportState.Done ||
+            exportState is SettingsViewModel.ExportState.Error
+        ) {
+            delay(3000)
+            viewModel.resetExportState()
+        }
+    }
 
     // 用户从设置页回来时刷新权限状态
     var refreshTick by remember { mutableStateOf(0) }
@@ -160,7 +185,12 @@ fun SettingsScreen(viewModel: SettingsViewModel = hiltViewModel()) {
             onRefreshModel = viewModel::refreshAiModelState,
         )
 
-        DataCard()
+        DataCard(
+            clearState = clearState,
+            exportState = exportState,
+            onClearConfirm = viewModel::clearAllData,
+            onExportRequest = viewModel::exportData,
+        )
 
         PrivacyCard()
     }
@@ -360,18 +390,79 @@ private fun ThresholdRow(
 }
 
 @Composable
-private fun DataCard() {
+private fun DataCard(
+    clearState: SettingsViewModel.ClearState,
+    exportState: SettingsViewModel.ExportState,
+    onClearConfirm: () -> Unit,
+    onExportRequest: () -> Unit,
+) {
+    var showConfirmDialog by remember { mutableStateOf(false) }
     val context = LocalContext.current
-    val placeholder = { android.widget.Toast.makeText(context, "下个版本实现", android.widget.Toast.LENGTH_SHORT).show() }
+
+    if (showConfirmDialog) {
+        AlertDialog(
+            onDismissRequest = { showConfirmDialog = false },
+            title = { Text("清空全部历史数据？") },
+            text = {
+                Text(
+                    "将删除所有通知记录、使用时长、建议历史、对话记录和每日计划。\n\n" +
+                    "AI 设置和权限配置不受影响。此操作不可撤销。"
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = { showConfirmDialog = false; onClearConfirm() },
+                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                ) {
+                    Text("确认清空")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showConfirmDialog = false }) {
+                    Text("取消")
+                }
+            },
+        )
+    }
+
+    if (clearState is SettingsViewModel.ClearState.InProgress) {
+        AlertDialog(
+            onDismissRequest = {},
+            title = { Text("正在清空...") },
+            text = { LinearProgressIndicator(modifier = Modifier.fillMaxWidth()) },
+            confirmButton = {},
+        )
+    }
+
+    LaunchedEffect(clearState) {
+        when (clearState) {
+            is SettingsViewModel.ClearState.Done ->
+                android.widget.Toast.makeText(context, "历史数据已清空", android.widget.Toast.LENGTH_SHORT).show()
+            is SettingsViewModel.ClearState.Error ->
+                android.widget.Toast.makeText(context, "清空失败：${clearState.message}", android.widget.Toast.LENGTH_LONG).show()
+            else -> Unit
+        }
+    }
+
+    LaunchedEffect(exportState) {
+        when (exportState) {
+            is SettingsViewModel.ExportState.Done ->
+                android.widget.Toast.makeText(context, "已导出到：${exportState.filePath}", android.widget.Toast.LENGTH_LONG).show()
+            is SettingsViewModel.ExportState.Error ->
+                android.widget.Toast.makeText(context, exportState.message, android.widget.Toast.LENGTH_LONG).show()
+            else -> Unit
+        }
+    }
+
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
     ) {
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text("数据", style = MaterialTheme.typography.titleMedium) // TODO: strings.xml
-            SettingsRow("导出全部数据", onClick = placeholder)
-            SettingsRow("清空历史数据", onClick = placeholder)
-            SettingsRow("数据保留策略", onClick = placeholder)
+            Text("数据", style = MaterialTheme.typography.titleMedium)
+            SettingsRow("导出全部数据", onClick = onExportRequest)
+            SettingsRow("清空历史数据") { showConfirmDialog = true }
+            SettingsRow("数据保留策略") {}
         }
     }
 }

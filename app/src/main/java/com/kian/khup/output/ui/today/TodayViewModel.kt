@@ -3,6 +3,7 @@ package com.kian.khup.output.ui.today
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.kian.khup.common.util.todayStartLocalMs
+import com.kian.khup.core.ai.AiContextBridge
 import com.kian.khup.core.data.db.AppSessionDao
 import com.kian.khup.core.data.db.AttentionAnomalyDao
 import com.kian.khup.core.data.db.EventDao
@@ -28,6 +29,7 @@ class TodayViewModel @Inject constructor(
     private val eventDao: EventDao,
     private val anomalyDao: AttentionAnomalyDao,
     private val appSessionDao: AppSessionDao,
+    private val aiContextBridge: AiContextBridge,
 ) : ViewModel() {
 
     data class MiniObservation(
@@ -37,6 +39,10 @@ class TodayViewModel @Inject constructor(
     )
 
     data class RejectDialogState(val suggestionId: Long)
+
+    sealed class NavigationEvent {
+        object GoToAi : NavigationEvent()
+    }
 
     sealed class SuggestionCardState {
         object Loading : SuggestionCardState()
@@ -52,6 +58,7 @@ class TodayViewModel @Inject constructor(
         val isSubmitting: Boolean = false,
         val miniObservation: MiniObservation = MiniObservation(),
         val rejectDialogState: RejectDialogState? = null,
+        val navigationEvent: NavigationEvent? = null,
     )
 
     private val _uiState = MutableStateFlow(UiState())
@@ -168,6 +175,51 @@ class TodayViewModel @Inject constructor(
             recentAcceptedSuggestion = null
             _uiState.update { it.copy(rejectDialogState = null) }
         }
+    }
+
+    /**
+     * 用户在 reject dialog 选择"和 AI 聊聊"。
+     * 写 REJECTED，构建上下文并推入 AiContextBridge，然后触发导航事件。
+     */
+    fun confirmRejectAndChat(reason: String?) {
+        val id = pendingRejectId ?: return
+        pendingRejectId = null
+        // 在卡片消失之前抓住当前 suggestion 用于构造上下文
+        val suggestion = (_uiState.value.suggestionCardState as? SuggestionCardState.Pending)
+            ?.suggestion
+        val trimmed = reason?.trim()?.ifBlank { null }
+        viewModelScope.launch {
+            suggestionRepository.reject(id, trimmed)
+            recentAcceptedSuggestion = null
+            if (suggestion != null) {
+                aiContextBridge.setPending(buildAiContext(suggestion, trimmed), id)
+            }
+            _uiState.update {
+                it.copy(
+                    rejectDialogState = null,
+                    navigationEvent = NavigationEvent.GoToAi,
+                )
+            }
+        }
+    }
+
+    fun clearNavigationEvent() {
+        _uiState.update { it.copy(navigationEvent = null) }
+    }
+
+    private fun buildAiContext(suggestion: AnomalySuggestion, reason: String?): String {
+        val reasonText = if (reason.isNullOrBlank()) "未说明" else reason
+        return """
+            我刚拒绝了一条异常值建议，想和你聊聊。
+
+            建议标题：「${suggestion.title}」
+            建议内容：「${suggestion.actionText}」
+            为什么给这条建议：「${suggestion.whyText}」
+
+            我觉得不适合，原因：$reasonText
+
+            帮我分析一下为什么不适合，或者换一个角度给我建议。
+        """.trimIndent()
     }
 
     private fun scheduleGenerationTimeout() {

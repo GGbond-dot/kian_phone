@@ -3,11 +3,13 @@ package com.kian.khup.core.data.db.entities
 import androidx.room.Entity
 import androidx.room.Index
 import androidx.room.PrimaryKey
+import kotlinx.serialization.Serializable
 
 /**
  * 通用用户反馈表。承载行为线 / 信息线 / 复盘 / 分类 / AI 消息等多种反馈，
  * 由 [targetType] + [targetId] 寻址；不设外键，避免跨表删除联动。
  */
+@Serializable
 @Entity(
     tableName = "user_feedback",
     indices = [

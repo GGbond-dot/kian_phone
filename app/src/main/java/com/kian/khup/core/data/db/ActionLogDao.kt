@@ -48,4 +48,10 @@ interface ActionLogDao {
         LIMIT :limit
     """)
     suspend fun loadSince(sinceMs: Long, limit: Int): List<ActionLog>
+
+    @Query("DELETE FROM actions_log WHERE triggeredAt < :beforeMs")
+    suspend fun deleteOlderThan(beforeMs: Long): Int
+
+    @Query("DELETE FROM actions_log")
+    suspend fun deleteAll(): Int
 }

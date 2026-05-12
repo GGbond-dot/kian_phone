@@ -2,9 +2,11 @@ package com.kian.khup.output.ui.ai
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.kian.khup.core.ai.AiContextBridge
 import com.kian.khup.core.ai.AiProviderMode
 import com.kian.khup.core.ai.AiSettings
 import com.kian.khup.core.ai.AiSettingsRepository
+import com.kian.khup.core.ai.KhupContextSummarizer
 import com.kian.khup.core.ai.KhupPromptPolicy
 import com.kian.khup.core.ai.LlmEngine
 import com.kian.khup.core.ai.LlmModelState
@@ -27,7 +29,12 @@ class AiChatViewModel @Inject constructor(
     private val chatMessageDao: ChatMessageDao,
     private val chatSessionDao: ChatSessionDao,
     private val localToolRegistry: AiLocalToolRegistry,
+    private val aiContextBridge: AiContextBridge,
+    private val contextSummarizer: KhupContextSummarizer,
 ) : ViewModel() {
+
+    private var cachedUserContext: String = ""
+    private var cachedContextMode: AiProviderMode? = null
 
     private val _uiState = MutableStateFlow(
         AiChatUiState(
@@ -39,10 +46,33 @@ class AiChatViewModel @Inject constructor(
 
     init {
         viewModelScope.launch {
+            refreshUserContext(_uiState.value.settings.providerMode)
+        }
+
+        // 入口分流：来自 [不适合] → 和 AI 聊聊 时，AiContextBridge 里有预填上下文。
+        // 这种情况下不复用最近的会话，而是新建一条带 linkedSuggestionId 的 ChatSession，
+        // 然后自动把预填消息当作用户输入发出。
+        // 详见 worklog/技术方案_行为线MVP/07_补丁_不适合后AI讨论.md §5 §9.3。
+        val pending = aiContextBridge.consumePending()
+        val sessionToOpen = aiContextBridge.consumeSessionToOpen()
+
+        viewModelScope.launch {
             var initialized = false
             chatSessionDao.observeAll().collect { sessions ->
                 if (!initialized) {
                     initialized = true
+                    if (pending != null) {
+                        startSessionForRejectedSuggestion(pending, sessions)
+                        return@collect
+                    }
+                    if (sessionToOpen != null && sessions.any { it.id == sessionToOpen }) {
+                        // HistoryScreen → 查看当时的讨论：直接打开指定的 ChatSession。
+                        _uiState.update {
+                            it.copy(sessions = sessions, currentSessionId = sessionToOpen)
+                        }
+                        selectSessionInternal(sessionToOpen)
+                        return@collect
+                    }
                     val mostRecent = sessions.firstOrNull()
                     if (mostRecent != null) {
                         val recent = chatMessageDao.loadRecentBySession(mostRecent.id, MAX_HISTORY_LOAD)
@@ -74,8 +104,45 @@ class AiChatViewModel @Inject constructor(
                     _uiState.update {
                         it.copy(settings = settings, modelState = llmEngine.modelState())
                     }
+                    if (settings.providerMode != cachedContextMode) {
+                        refreshUserContext(settings.providerMode)
+                    }
                 }
         }
+    }
+
+    private suspend fun startSessionForRejectedSuggestion(
+        pending: AiContextBridge.PendingContext,
+        sessions: List<ChatSession>,
+    ) {
+        val now = System.currentTimeMillis()
+        val sessionId = chatSessionDao.insert(
+            ChatSession(
+                title = "讨论被拒建议",
+                createdAt = now,
+                updatedAt = now,
+                lastMessagePreview = pending.message.take(PREVIEW_LEN),
+                linkedSuggestionId = pending.suggestionId,
+            )
+        )
+        _uiState.update {
+            it.copy(
+                sessions = sessions,
+                currentSessionId = sessionId,
+                messages = emptyList(),
+                error = null,
+            )
+        }
+        send(pending.message)
+    }
+
+    private suspend fun refreshUserContext(mode: AiProviderMode) {
+        val budget = if (mode == AiProviderMode.ApiOnly)
+            KhupContextSummarizer.TOKEN_BUDGET_API
+        else
+            KhupContextSummarizer.TOKEN_BUDGET_LOCAL
+        cachedUserContext = try { contextSummarizer.buildUserContext(budget) } catch (_: Throwable) { "" }
+        cachedContextMode = mode
     }
 
     fun refreshModelState() {
@@ -152,7 +219,10 @@ class AiChatViewModel @Inject constructor(
             val sessionId = ensureSession(trimmed, isFirstMessage)
             persist(sessionId, userMessage, mode)
             val toolRun = localToolRegistry.runFor(trimmed)
-            val prompt = buildPrompt(_uiState.value.messages, mode, toolRun)
+            // 用 DAO 兜底：刚由 startSessionForRejectedSuggestion 创建的 session 可能还
+            // 没出现在 state.sessions（observeAll 的下一帧才推上来）。
+            val isRejectDiscussion = chatSessionDao.findById(sessionId)?.linkedSuggestionId != null
+            val prompt = buildPrompt(_uiState.value.messages, mode, toolRun, isRejectDiscussion)
             llmEngine.generate(prompt)
                 .onSuccess { response ->
                     val assistant = ChatMessage(
@@ -264,6 +334,7 @@ class AiChatViewModel @Inject constructor(
         messages: List<ChatMessage>,
         mode: AiProviderMode,
         toolRun: AiToolRun?,
+        isRejectDiscussion: Boolean,
     ): String {
         val limit = when (mode) {
             AiProviderMode.ApiOnly -> MAX_CONTEXT_MESSAGES_API
@@ -271,10 +342,15 @@ class AiChatViewModel @Inject constructor(
         }
         val recent = messages.takeLast(limit)
         return buildString {
-            appendLine("你是 KHUP 里的 kian-ai-chat 助手。")
-            appendLine(KhupPromptPolicy.WORLDVIEW.trim())
-            appendLine(KhupPromptPolicy.MENTOR_STYLE.trim())
-            appendLine(KhupPromptPolicy.LOCAL_TOOL_RULES.trim())
+            appendLine(KhupPromptPolicy.AI_CHAT_SYSTEM_PROMPT.trim())
+            if (cachedUserContext.isNotBlank()) {
+                appendLine()
+                appendLine(cachedUserContext)
+                appendLine("以上是系统从用户数据中提取的模式摘要，仅供你理解用户背景。对话中不要直接朗读这些数据，而是自然地把它们融入你对用户的理解中。")
+            }
+            if (isRejectDiscussion) {
+                appendLine(KhupPromptPolicy.REJECT_DISCUSSION_RULES.trim())
+            }
             appendLine("要求：用中文回答，直接、有用、不要编造你不知道的手机数据。")
             if (toolRun != null) {
                 appendLine("这次问题命中了本地工具调用。回答时优先使用工具结果；如果工具结果没有对应数据，要直接说明本地暂无记录。")

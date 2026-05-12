@@ -73,4 +73,10 @@ interface TriggerTagDao {
         ORDER BY count DESC, averageConfidence DESC
     """)
     fun observeTagTotalsForDay(dayStartMs: Long): Flow<List<TriggerTagTotal>>
+
+    @Query("DELETE FROM trigger_tags WHERE createdAt < :beforeMs")
+    suspend fun deleteOlderThan(beforeMs: Long): Int
+
+    @Query("DELETE FROM trigger_tags")
+    suspend fun deleteAll(): Int
 }

@@ -16,6 +16,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.navigation.NavDestination.Companion.hierarchy
+import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
@@ -26,6 +27,7 @@ import com.kian.khup.output.ui.history.HistoryScreen
 import com.kian.khup.output.ui.messages.NotificationsScreen
 import com.kian.khup.output.ui.settings.SettingsScreen
 import com.kian.khup.output.ui.today.TodayScreen
+import com.kian.khup.output.ui.usage.AppUsageScreen
 
 private enum class Tab(val route: String, val label: String, val icon: ImageVector) {
     Today("today", "今日", Icons.Outlined.Today),
@@ -75,9 +77,15 @@ fun MainScreen() {
                     onNavigateToHistory = { navController.navigate(Tab.History.route) },
                     onNavigateToNotifications = { navController.navigate("notifications") },
                     onNavigateToDailyPlan = { navController.navigate("daily_plan") },
+                    onNavigateToAppUsage = { navController.navigate("app_usage") },
+                    onNavigateToAi = { navigateToAiWithBridge(navController) },
                 )
             }
-            composable(Tab.History.route) { HistoryScreen() }
+            composable(Tab.History.route) {
+                HistoryScreen(
+                    onNavigateToAi = { navigateToAiWithBridge(navController) },
+                )
+            }
             composable(Tab.Ai.route) { AiChatScreen() }
             composable(Tab.Settings.route) { SettingsScreen() }
             composable("notifications") {
@@ -86,6 +94,22 @@ fun MainScreen() {
             composable("daily_plan") {
                 DailyPlanScreen(onBack = { navController.popBackStack() })
             }
+            composable("app_usage") {
+                AppUsageScreen(onBack = { navController.popBackStack() })
+            }
         }
+    }
+}
+
+/**
+ * 切换到 AI tab 并强制 [com.kian.khup.output.ui.ai.AiChatViewModel] 重新 init，
+ * 以便消费 [com.kian.khup.core.ai.AiContextBridge] 里的预填上下文 / 待打开会话。
+ * 这是 §6 / §9.4 路由的关键点 —— restoreState 必须为 false。
+ */
+private fun navigateToAiWithBridge(navController: NavHostController) {
+    navController.navigate(Tab.Ai.route) {
+        popUpTo(navController.graph.startDestinationId) { saveState = true }
+        launchSingleTop = true
+        restoreState = false
     }
 }

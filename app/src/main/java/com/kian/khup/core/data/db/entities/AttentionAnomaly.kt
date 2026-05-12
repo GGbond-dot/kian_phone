@@ -3,7 +3,9 @@ package com.kian.khup.core.data.db.entities
 import androidx.room.Entity
 import androidx.room.Index
 import androidx.room.PrimaryKey
+import kotlinx.serialization.Serializable
 
+@Serializable
 @Entity(
     tableName = "attention_anomaly",
     indices = [

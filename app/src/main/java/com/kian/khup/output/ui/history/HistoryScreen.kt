@@ -24,11 +24,19 @@ import com.kian.khup.output.ui.history.tabs.TrendsTab
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun HistoryScreen(viewModel: HistoryViewModel = hiltViewModel()) {
+fun HistoryScreen(
+    onNavigateToAi: () -> Unit = {},
+    viewModel: HistoryViewModel = hiltViewModel(),
+) {
+    val onOpenChatSession: (Long) -> Unit = { sessionId ->
+        viewModel.requestOpenChatSession(sessionId)
+        onNavigateToAi()
+    }
     val patterns by viewModel.patternsState.collectAsStateWithLifecycle()
     val suggestions by viewModel.suggestionsState.collectAsStateWithLifecycle()
     val trends by viewModel.trendsState.collectAsStateWithLifecycle()
     val periodDays by viewModel.periodDaysState.collectAsStateWithLifecycle()
+    val linkedSessions by viewModel.linkedSessionsState.collectAsStateWithLifecycle()
     var selectedTab by rememberSaveable { mutableIntStateOf(0) }
 
     // TODO: strings.xml
@@ -49,7 +57,12 @@ fun HistoryScreen(viewModel: HistoryViewModel = hiltViewModel()) {
             }
             when (selectedTab) {
                 0 -> PatternsTab(patterns = patterns, modifier = Modifier.fillMaxSize())
-                1 -> SuggestionsTab(suggestions = suggestions, modifier = Modifier.fillMaxSize())
+                1 -> SuggestionsTab(
+                    suggestions = suggestions,
+                    linkedSessions = linkedSessions,
+                    onOpenChatSession = onOpenChatSession,
+                    modifier = Modifier.fillMaxSize(),
+                )
                 2 -> TrendsTab(
                     trends = trends,
                     periodDays = periodDays,

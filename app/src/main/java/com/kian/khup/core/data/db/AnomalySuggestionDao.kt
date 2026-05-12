@@ -8,6 +8,8 @@ import androidx.room.Update
 import com.kian.khup.core.data.db.entities.AnomalySuggestion
 import kotlinx.coroutines.flow.Flow
 
+data class DomainCount(val suggestionDomain: String, val count: Int)
+
 @Dao
 interface AnomalySuggestionDao {
 
@@ -105,4 +107,34 @@ interface AnomalySuggestionDao {
     @Deprecated("旧 DailyTask 兼容；新代码用 updateStatus 到 ARCHIVED")
     @Query("DELETE FROM anomaly_suggestion WHERE id = :id")
     suspend fun deleteLegacy(id: Long)
+
+    /** Part A：7 天内各 domain 的建议数量，用于 domain 轮转。 */
+    @Query(
+        """
+        SELECT suggestionDomain, COUNT(*) as count
+        FROM anomaly_suggestion
+        WHERE createdAt >= :sinceMs
+        GROUP BY suggestionDomain
+        """
+    )
+    suspend fun getDomainCountsSince(sinceMs: Long): List<DomainCount>
+
+    /** Part C：7 天内所有建议（含 status），用于上下文摘要。 */
+    @Query(
+        """
+        SELECT * FROM anomaly_suggestion
+        WHERE createdAt >= :sinceMs
+        ORDER BY createdAt DESC
+        """
+    )
+    suspend fun getRecentWithStatus(sinceMs: Long): List<AnomalySuggestion>
+
+    @Query("DELETE FROM anomaly_suggestion WHERE createdAt < :beforeMs")
+    suspend fun deleteOlderThan(beforeMs: Long): Int
+
+    @Query("DELETE FROM anomaly_suggestion")
+    suspend fun deleteAll(): Int
+
+    @Query("SELECT * FROM anomaly_suggestion ORDER BY createdAt DESC")
+    suspend fun getAll(): List<AnomalySuggestion>
 }

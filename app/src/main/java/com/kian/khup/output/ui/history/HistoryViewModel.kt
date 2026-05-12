@@ -3,9 +3,11 @@ package com.kian.khup.output.ui.history
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.kian.khup.common.util.todayStartLocalMs
+import com.kian.khup.core.ai.AiContextBridge
 import com.kian.khup.core.data.db.AnomalySuggestionDao
 import com.kian.khup.core.data.db.AppSessionDao
 import com.kian.khup.core.data.db.AttentionAnomalyDao
+import com.kian.khup.core.data.db.ChatSessionDao
 import com.kian.khup.core.data.db.DailyUsageTotal
 import com.kian.khup.core.data.db.EventDao
 import com.kian.khup.core.data.db.EventType
@@ -29,7 +31,14 @@ class HistoryViewModel @Inject constructor(
     @Suppress("UnusedPrivateMember") private val feedbackDao: UserFeedbackDao,
     private val eventDao: EventDao,
     private val appSessionDao: AppSessionDao,
+    private val chatSessionDao: ChatSessionDao,
+    private val aiContextBridge: AiContextBridge,
 ) : ViewModel() {
+
+    /** "查看当时的讨论"：把 sessionId 推入桥，让 AiChatViewModel 下次 init 时直接打开。 */
+    fun requestOpenChatSession(sessionId: Long) {
+        aiContextBridge.setSessionToOpen(sessionId)
+    }
 
     data class TrendsData(
         val periodDays: Int = 7,
@@ -51,10 +60,15 @@ class HistoryViewModel @Inject constructor(
     private val _trends = MutableStateFlow(TrendsData())
     val trendsState: StateFlow<TrendsData> = _trends.asStateFlow()
 
+    /** suggestionId → ChatSession.id（被拒后用 [和 AI 聊聊] 产生的会话）。 */
+    private val _linkedSessions = MutableStateFlow<Map<Long, Long>>(emptyMap())
+    val linkedSessionsState: StateFlow<Map<Long, Long>> = _linkedSessions.asStateFlow()
+
     init {
         observePatterns()
         observeSuggestions()
         observeTrends()
+        observeLinkedSessions()
     }
 
     fun setPeriodDays(days: Int) {
@@ -66,6 +80,16 @@ class HistoryViewModel @Inject constructor(
     private fun observePatterns() {
         viewModelScope.launch {
             anomalyDao.observeByStatus("ACTIVE").collect { _patterns.value = it }
+        }
+    }
+
+    private fun observeLinkedSessions() {
+        viewModelScope.launch {
+            chatSessionDao.observeLinkedSessions().collect { sessions ->
+                _linkedSessions.value = sessions
+                    .mapNotNull { s -> s.linkedSuggestionId?.let { it to s.id } }
+                    .toMap()
+            }
         }
     }
 

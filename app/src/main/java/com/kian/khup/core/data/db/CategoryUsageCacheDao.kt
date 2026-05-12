@@ -22,4 +22,10 @@ interface CategoryUsageCacheDao {
 
     @Query("DELETE FROM category_usage_cache WHERE dayStartMs = :dayStartMs")
     suspend fun deleteForDay(dayStartMs: Long)
+
+    @Query("DELETE FROM category_usage_cache WHERE computedAt < :beforeMs")
+    suspend fun deleteOlderThan(beforeMs: Long): Int
+
+    @Query("DELETE FROM category_usage_cache")
+    suspend fun deleteAll(): Int
 }

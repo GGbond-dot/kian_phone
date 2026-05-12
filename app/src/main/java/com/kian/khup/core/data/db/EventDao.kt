@@ -47,8 +47,14 @@ interface EventDao {
     """)
     suspend fun getUnclassified(limit: Int): List<Event>
 
+    @Query("SELECT COUNT(*) FROM events WHERE type = :type AND timestamp >= :startMs AND timestamp < :endMs")
+    suspend fun countByTypeAndRange(type: String, startMs: Long, endMs: Long): Int
+
     @Query("DELETE FROM events WHERE timestamp < :beforeMs")
     suspend fun deleteOlderThan(beforeMs: Long): Int
+
+    @Query("DELETE FROM events")
+    suspend fun deleteAll(): Int
 
     @Query("""
         SELECT * FROM events

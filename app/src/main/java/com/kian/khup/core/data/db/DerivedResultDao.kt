@@ -72,4 +72,10 @@ interface DerivedResultDao {
         endMs: Long,
         limit: Int,
     ): List<ClassificationTotal>
+
+    @Query("DELETE FROM derived_results WHERE processedAt < :beforeMs")
+    suspend fun deleteOlderThan(beforeMs: Long): Int
+
+    @Query("DELETE FROM derived_results")
+    suspend fun deleteAll(): Int
 }

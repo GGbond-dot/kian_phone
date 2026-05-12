@@ -55,12 +55,14 @@ class AnomalySuggestionGeneratorImpl @Inject constructor(
 
         val parent = parentSuggestionId?.let { suggestionDao.getById(it) }
         val feedbackContext = loadFeedbackContext()
+        val domainHint = buildDomainHint()
 
         val prompt = buildSuggestionPrompt(
             pattern = pattern,
             feedbackContext = feedbackContext,
             parent = parent,
             regenerationCount = regenerationCount,
+            domainHint = domainHint,
         )
 
         val parsed = generateWithRetry(prompt)
@@ -74,7 +76,7 @@ class AnomalySuggestionGeneratorImpl @Inject constructor(
             createdAt = now,
             patternId = pattern.id,
             patternKey = pattern.anomalyKey,
-            suggestionDomain = SUGGESTION_DOMAIN_BEHAVIOR,
+            suggestionDomain = finalSuggestion.suggestionDomain,
             actionText = finalSuggestion.actionText,
             whyText = finalSuggestion.whyText,
             costLevel = "LOW",
@@ -105,6 +107,21 @@ class AnomalySuggestionGeneratorImpl @Inject constructor(
         return null
     }
 
+    private suspend fun buildDomainHint(): String {
+        val sevenDaysAgo = System.currentTimeMillis() - 7 * 24 * 3600 * 1000L
+        val domainCounts = suggestionDao.getDomainCountsSince(sevenDaysAgo)
+            .associate { it.suggestionDomain to it.count }
+        val overusedDomains = domainCounts.filter { it.value >= 3 }.keys
+        val suggestedDomains = (ALL_DOMAINS - overusedDomains).takeIf { it.isNotEmpty() } ?: ALL_DOMAINS
+        return buildString {
+            if (overusedDomains.isNotEmpty()) {
+                append("本周已频繁出现的建议领域（请尽量避免）：${overusedDomains.joinToString()}。\n")
+            }
+            append("优先考虑的建议领域：${suggestedDomains.joinToString()}。\n")
+            append("各领域含义：BEHAVIOR=行为路径, INFORMATION=信息偏离, SOCIAL=社交维度, SPACE=空间变化, BODY=身体感知, CREATION=创作输出。")
+        }
+    }
+
     private suspend fun loadFeedbackContext(): List<FeedbackEntry> {
         val sinceMs = System.currentTimeMillis() - TimeUnit.DAYS.toMillis(7)
         val feedbacks = feedbackDao.recentByTargetType(
@@ -127,6 +144,7 @@ class AnomalySuggestionGeneratorImpl @Inject constructor(
         feedbackContext: List<FeedbackEntry>,
         parent: AnomalySuggestion?,
         regenerationCount: Int,
+        domainHint: String,
     ): String {
         val now = System.currentTimeMillis()
         val timeFmt = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault())
@@ -135,6 +153,7 @@ class AnomalySuggestionGeneratorImpl @Inject constructor(
 
         val inputJson = buildJsonObject {
             put("task", "generate_anomaly_suggestion")
+            put("domain_guidance", domainHint)
             put(
                 "pattern",
                 buildJsonObject {
@@ -187,6 +206,7 @@ class AnomalySuggestionGeneratorImpl @Inject constructor(
             append("  \"whyText\": \"...\",\n")
             append("  \"costLevel\": \"LOW\",\n")
             append("  \"expectedUpside\": \"...\",\n")
+            append("  \"suggestionDomain\": \"BEHAVIOR|INFORMATION|SOCIAL|SPACE|BODY|CREATION\",\n")
             append("  \"tone\": \"sharp_but_not_shaming\"\n")
             append("}")
         }
@@ -200,7 +220,9 @@ class AnomalySuggestionGeneratorImpl @Inject constructor(
             val why = obj["whyText"]?.jsonPrimitive?.contentOrNull?.trim().orEmpty()
             val cost = obj["costLevel"]?.jsonPrimitive?.contentOrNull?.trim()?.uppercase().orEmpty()
             val upside = obj["expectedUpside"]?.jsonPrimitive?.contentOrNull?.trim().orEmpty()
-            ParsedSuggestion(action, why, cost, upside)
+            val domain = obj["suggestionDomain"]?.jsonPrimitive?.contentOrNull?.trim()?.uppercase()
+                ?.takeIf { it in ALL_DOMAINS } ?: SUGGESTION_DOMAIN_BEHAVIOR
+            ParsedSuggestion(action, why, cost, upside, domain)
         }.getOrNull()
     }
 
@@ -225,6 +247,7 @@ class AnomalySuggestionGeneratorImpl @Inject constructor(
         val whyText: String,
         val costLevel: String,
         val expectedUpside: String,
+        val suggestionDomain: String = "BEHAVIOR",
     ) {
         fun passesThreePillars(): Boolean {
             if (costLevel != "LOW") return false
@@ -240,6 +263,7 @@ class AnomalySuggestionGeneratorImpl @Inject constructor(
                 whyText = KhupPromptPolicy.FALLBACK_SUGGESTION_WHY,
                 costLevel = "LOW",
                 expectedUpside = KhupPromptPolicy.FALLBACK_SUGGESTION_UPSIDE,
+                suggestionDomain = "BEHAVIOR",
             )
         }
     }
@@ -256,5 +280,6 @@ class AnomalySuggestionGeneratorImpl @Inject constructor(
         const val TARGET_TYPE_SUGGESTION = "SUGGESTION"
         const val DEFAULT_AVAILABLE_MINUTES = 30
         val COOLDOWN_STATUSES = setOf("PENDING", "ACCEPTED", "REJECTED")
+        val ALL_DOMAINS = listOf("BEHAVIOR", "INFORMATION", "SOCIAL", "SPACE", "BODY", "CREATION")
     }
 }

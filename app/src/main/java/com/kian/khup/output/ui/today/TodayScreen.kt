@@ -1,11 +1,17 @@
 package com.kian.khup.output.ui.today
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.AvTimer
 import androidx.compose.material.icons.outlined.ChecklistRtl
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.AlertDialog
@@ -19,6 +25,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -27,6 +34,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.kian.khup.output.ui.today.TodayViewModel.NavigationEvent
 import com.kian.khup.output.ui.today.components.AnomalySuggestionCard
 import com.kian.khup.output.ui.today.components.MiniObservationCard
 import com.kian.khup.output.ui.today.components.QuickCheckInCard
@@ -38,9 +46,21 @@ fun TodayScreen(
     onNavigateToHistory: () -> Unit,
     onNavigateToNotifications: () -> Unit,
     onNavigateToDailyPlan: () -> Unit,
+    onNavigateToAppUsage: () -> Unit,
+    onNavigateToAi: () -> Unit,
     viewModel: TodayViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+
+    LaunchedEffect(state.navigationEvent) {
+        when (state.navigationEvent) {
+            is NavigationEvent.GoToAi -> {
+                onNavigateToAi()
+                viewModel.clearNavigationEvent()
+            }
+            null -> Unit
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -49,6 +69,9 @@ fun TodayScreen(
                 actions = {
                     IconButton(onClick = onNavigateToDailyPlan) {
                         Icon(Icons.Outlined.ChecklistRtl, contentDescription = "今日计划")
+                    }
+                    IconButton(onClick = onNavigateToAppUsage) {
+                        Icon(Icons.Outlined.AvTimer, contentDescription = "应用使用时间")
                     }
                     IconButton(onClick = onNavigateToSettings) {
                         Icon(Icons.Outlined.Settings, contentDescription = "设置")
@@ -95,6 +118,7 @@ fun TodayScreen(
         RejectDialog(
             onDismiss = viewModel::closeRejectDialog,
             onConfirm = viewModel::confirmReject,
+            onConfirmAndChat = viewModel::confirmRejectAndChat,
         )
     }
 }
@@ -103,26 +127,48 @@ fun TodayScreen(
 private fun RejectDialog(
     onDismiss: () -> Unit,
     onConfirm: (String?) -> Unit,
+    onConfirmAndChat: (String?) -> Unit,
 ) {
     var reason by rememberSaveable { mutableStateOf("") }
+    val sanitized: () -> String? = { reason.trim().ifBlank { null } }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("为什么不适合？") }, // TODO: strings.xml
+        title = { Text("这条不太合适？") }, // TODO: strings.xml
         text = {
-            OutlinedTextField(
-                value = reason,
-                onValueChange = { if (it.length <= 100) reason = it },
-                placeholder = { Text("可以跳过（选填）") }, // TODO: strings.xml
-                maxLines = 3,
-            )
+            Column {
+                Text(
+                    text = "说说为什么（选填）", // TODO: strings.xml
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = reason,
+                    onValueChange = { if (it.length <= 100) reason = it },
+                    placeholder = { Text("比如：太累了不想出门") }, // TODO: strings.xml
+                    maxLines = 3,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
         },
+        // 三个出口：
+        //   算了，跳过 → 维持 PENDING（dismiss）
+        //   确定      → 写 REJECTED，卡片消失
+        //   和 AI 聊聊 → 写 REJECTED + 跳到 AI tab + 自动发送预填上下文
         confirmButton = {
-            TextButton(onClick = { onConfirm(reason.trim().ifBlank { null }) }) {
-                Text("确认") // TODO: strings.xml
+            TextButton(onClick = { onConfirmAndChat(sanitized()) }) {
+                Text("和 AI 聊聊 →") // TODO: strings.xml
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("取消") } // TODO: strings.xml
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                TextButton(onClick = onDismiss) {
+                    Text("算了，跳过") // TODO: strings.xml
+                }
+                TextButton(onClick = { onConfirm(sanitized()) }) {
+                    Text("确定") // TODO: strings.xml
+                }
+            }
         },
     )
 }

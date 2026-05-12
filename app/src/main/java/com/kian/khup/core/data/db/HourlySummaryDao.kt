@@ -25,4 +25,10 @@ interface HourlySummaryDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(summary: HourlySummary): Long
+
+    @Query("DELETE FROM hourly_summary WHERE windowStartMs < :beforeMs")
+    suspend fun deleteOlderThan(beforeMs: Long): Int
+
+    @Query("DELETE FROM hourly_summary")
+    suspend fun deleteAll(): Int
 }

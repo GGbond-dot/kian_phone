@@ -55,6 +55,20 @@ object WorkScheduler {
             PeriodicWorkRequestBuilder<HourlySummaryWorker>(1, TimeUnit.HOURS).build(),
         )
 
+        // 中期记忆压缩：每 7 天通过 LLM 生成近 30 天规律摘要，写入 user_memory。
+        wm.enqueueUniquePeriodicWork(
+            WeeklyMemoryJob.UNIQUE_NAME,
+            ExistingPeriodicWorkPolicy.KEEP,
+            PeriodicWorkRequestBuilder<WeeklyMemoryJob>(7, TimeUnit.DAYS).build(),
+        )
+
+        // 长期记忆提炼：每 30 天把中期摘要提炼为稳定身份特征，写入 user_memory。
+        wm.enqueueUniquePeriodicWork(
+            MonthlyMemoryJob.UNIQUE_NAME,
+            ExistingPeriodicWorkPolicy.KEEP,
+            PeriodicWorkRequestBuilder<MonthlyMemoryJob>(30, TimeUnit.DAYS).build(),
+        )
+
         scheduleDailyReview(context, ExistingWorkPolicy.KEEP)
     }
 

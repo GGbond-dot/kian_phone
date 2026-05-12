@@ -27,6 +27,8 @@ private val STATUS_LABELS = mapOf(
 @Composable
 fun SuggestionsTab(
     suggestions: Map<String, List<AnomalySuggestion>>,
+    linkedSessions: Map<Long, Long> = emptyMap(),
+    onOpenChatSession: (Long) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     if (suggestions.isEmpty()) {
@@ -52,7 +54,13 @@ fun SuggestionsTab(
                 )
             }
             items(list, key = { it.id }) { suggestion ->
-                SuggestionRow(suggestion = suggestion, onClick = {})
+                val linkedSessionId = linkedSessions[suggestion.id]
+                SuggestionRow(
+                    suggestion = suggestion,
+                    onClick = {},
+                    linkedSessionId = linkedSessionId,
+                    onOpenChatSession = onOpenChatSession,
+                )
                 HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
             }
         }

@@ -16,6 +16,7 @@ import com.kian.khup.core.data.db.ClassificationFeedbackDao
 import com.kian.khup.core.data.db.ContentThemeTagDao
 import com.kian.khup.core.data.db.DailyPlanDao
 import com.kian.khup.core.data.db.DailyReviewDao
+import com.kian.khup.core.data.db.UserMemoryDao
 import com.kian.khup.core.data.db.DerivedResultDao
 import com.kian.khup.core.data.db.EventDao
 import com.kian.khup.core.data.db.HourlySummaryDao
@@ -23,6 +24,8 @@ import com.kian.khup.core.data.db.TriggerTagDao
 import com.kian.khup.core.data.db.UserFeedbackDao
 import com.kian.khup.core.data.db.migrations.MIGRATION_10_11
 import com.kian.khup.core.data.db.migrations.MIGRATION_11_12
+import com.kian.khup.core.data.db.migrations.MIGRATION_12_13
+import com.kian.khup.core.data.db.migrations.MIGRATION_13_14
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -49,6 +52,8 @@ object DatabaseModule {
                 MIGRATION_9_10,
                 MIGRATION_10_11,
                 MIGRATION_11_12,
+                MIGRATION_12_13,
+                MIGRATION_13_14,
             )
             .build()
 
@@ -100,6 +105,9 @@ object DatabaseModule {
 
     @Provides
     fun provideDailyPlanDao(db: AppDatabase): DailyPlanDao = db.dailyPlanDao()
+
+    @Provides
+    fun provideUserMemoryDao(db: AppDatabase): UserMemoryDao = db.userMemoryDao()
 
     private val MIGRATION_2_3 = object : Migration(2, 3) {
         override fun migrate(db: SupportSQLiteDatabase) {

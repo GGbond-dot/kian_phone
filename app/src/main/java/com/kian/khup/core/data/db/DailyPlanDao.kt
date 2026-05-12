@@ -41,4 +41,13 @@ interface DailyPlanDao {
 
     @Query("SELECT COUNT(*) FROM daily_plan WHERE dayStartMs = :dayStartMs AND isDone = 1")
     fun observeDoneCountByDay(dayStartMs: Long): Flow<Int>
+
+    @Query("DELETE FROM daily_plan WHERE dayStartMs < :beforeMs")
+    suspend fun deleteOlderThan(beforeMs: Long): Int
+
+    @Query("DELETE FROM daily_plan")
+    suspend fun deleteAll(): Int
+
+    @Query("SELECT * FROM daily_plan ORDER BY dayStartMs DESC")
+    suspend fun getAll(): List<DailyPlan>
 }

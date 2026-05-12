@@ -29,4 +29,13 @@ interface UserFeedbackDao {
         """
     )
     suspend fun findByTarget(targetType: String, targetId: Long): List<UserFeedback>
+
+    @Query("DELETE FROM user_feedback WHERE createdAt < :beforeMs")
+    suspend fun deleteOlderThan(beforeMs: Long): Int
+
+    @Query("DELETE FROM user_feedback")
+    suspend fun deleteAll(): Int
+
+    @Query("SELECT * FROM user_feedback ORDER BY createdAt DESC")
+    suspend fun getAll(): List<UserFeedback>
 }

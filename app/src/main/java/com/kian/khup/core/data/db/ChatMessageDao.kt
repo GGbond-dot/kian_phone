@@ -19,4 +19,13 @@ interface ChatMessageDao {
 
     @Query("DELETE FROM chat_message WHERE sessionId = :sessionId")
     suspend fun clearSession(sessionId: Long)
+
+    @Query("DELETE FROM chat_message WHERE timestamp < :beforeMs")
+    suspend fun deleteOlderThan(beforeMs: Long): Int
+
+    @Query("DELETE FROM chat_message")
+    suspend fun deleteAll(): Int
+
+    @Query("SELECT * FROM chat_message ORDER BY timestamp DESC")
+    suspend fun getAll(): List<ChatMessage>
 }

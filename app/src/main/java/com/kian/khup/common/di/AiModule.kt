@@ -2,12 +2,14 @@ package com.kian.khup.common.di
 
 import com.kian.khup.core.ai.HybridLlmEngine
 import com.kian.khup.core.ai.LlmEngine
+import com.kian.khup.core.ai.PromptRedactor
 import com.kian.khup.core.anomaly.AnomalySuggestionGenerator
 import com.kian.khup.core.anomaly.AnomalySuggestionGeneratorImpl
 import com.kian.khup.core.anomaly.RegressionPatternGenerator
 import com.kian.khup.core.anomaly.RegressionPatternGeneratorImpl
 import dagger.Binds
 import dagger.Module
+import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
 import javax.inject.Singleton
@@ -31,4 +33,10 @@ abstract class AiModule {
     abstract fun bindAnomalySuggestionGenerator(
         impl: AnomalySuggestionGeneratorImpl,
     ): AnomalySuggestionGenerator
+
+    companion object {
+        @Provides
+        @Singleton
+        fun providePromptRedactor(): PromptRedactor = PromptRedactor
+    }
 }

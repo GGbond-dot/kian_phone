@@ -3,6 +3,7 @@ package com.kian.khup.core.data.db.entities
 import androidx.room.Entity
 import androidx.room.Index
 import androidx.room.PrimaryKey
+import kotlinx.serialization.Serializable
 
 /**
  * 异常值建议（行为线 MVP）。从原 DailyTask 表迁移而来。
@@ -10,6 +11,7 @@ import androidx.room.PrimaryKey
  * 由 [AnomalySuggestionGenerator] 基于 [AttentionAnomaly] 生成；
  * 用户反馈通过 [UserFeedback] 记录，更新 [status]。
  */
+@Serializable
 @Entity(
     tableName = "anomaly_suggestion",
     indices = [
