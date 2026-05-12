@@ -2,7 +2,6 @@ package com.kian.khup.output.ui
 
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.History
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.Today
@@ -31,10 +30,12 @@ import com.kian.khup.output.ui.usage.AppUsageScreen
 
 private enum class Tab(val route: String, val label: String, val icon: ImageVector) {
     Today("today", "今日", Icons.Outlined.Today),
-    History("history", "历史", Icons.Outlined.History),
-    Ai("ai", "AI", Icons.Outlined.AutoAwesome),
+    Review("review", "回顾", Icons.Outlined.History),
     Settings("settings", "设置", Icons.Outlined.Settings),
 }
+
+private const val ROUTE_AI = "ai"
+private const val ROUTE_HISTORY_LEGACY = "history"
 
 @Composable
 fun MainScreen() {
@@ -74,19 +75,24 @@ fun MainScreen() {
             composable(Tab.Today.route) {
                 TodayScreen(
                     onNavigateToSettings = { navController.navigate(Tab.Settings.route) },
-                    onNavigateToHistory = { navController.navigate(Tab.History.route) },
+                    onNavigateToHistory = { navController.navigate(Tab.Review.route) },
                     onNavigateToNotifications = { navController.navigate("notifications") },
                     onNavigateToDailyPlan = { navController.navigate("daily_plan") },
                     onNavigateToAppUsage = { navController.navigate("app_usage") },
                     onNavigateToAi = { navigateToAiWithBridge(navController) },
                 )
             }
-            composable(Tab.History.route) {
+            composable(Tab.Review.route) {
                 HistoryScreen(
                     onNavigateToAi = { navigateToAiWithBridge(navController) },
                 )
             }
-            composable(Tab.Ai.route) { AiChatScreen() }
+            composable(ROUTE_HISTORY_LEGACY) {
+                HistoryScreen(
+                    onNavigateToAi = { navigateToAiWithBridge(navController) },
+                )
+            }
+            composable(ROUTE_AI) { AiChatScreen() }
             composable(Tab.Settings.route) { SettingsScreen() }
             composable("notifications") {
                 NotificationsScreen(onBack = { navController.popBackStack() })
@@ -107,7 +113,7 @@ fun MainScreen() {
  * 这是 §6 / §9.4 路由的关键点 —— restoreState 必须为 false。
  */
 private fun navigateToAiWithBridge(navController: NavHostController) {
-    navController.navigate(Tab.Ai.route) {
+    navController.navigate(ROUTE_AI) {
         popUpTo(navController.graph.startDestinationId) { saveState = true }
         launchSingleTop = true
         restoreState = false
