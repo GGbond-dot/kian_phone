@@ -8,6 +8,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -53,6 +55,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.kian.khup.BuildConfig
 import com.kian.khup.core.ai.AiProviderMode
 import com.kian.khup.core.data.db.entities.ChatSession
+import com.kian.khup.output.ui.theme.L2Surface
+import com.kian.khup.output.ui.theme.Spacing
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -166,7 +170,7 @@ fun AiChatScreen(
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             if (uiState.messages.isEmpty()) {
-                item { EmptyChatCard() }
+                item { EmptyChatCard(onSend = viewModel::send) }
             }
             items(uiState.messages) { message ->
                 ChatMessageCard(message)
@@ -344,14 +348,41 @@ private val timeFormatter = SimpleDateFormat("MM/dd HH:mm", Locale.getDefault())
 private fun formatTime(ms: Long): String = timeFormatter.format(Date(ms))
 
 @Composable
-private fun EmptyChatCard() {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+private fun EmptyChatCard(onSend: (String) -> Unit) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = Spacing.xl),
+        horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text("先试一句简单问题。", style = MaterialTheme.typography.titleMedium)
+        Text("今天怎么样？", style = MaterialTheme.typography.headlineLarge)
+        Spacer(Modifier.height(Spacing.lg))
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+        ) {
+            TopicStarterRow("帮我看看今天的情况", onSend)
+            TopicStarterRow("我现在有点烦/累", onSend)
+            TopicStarterRow("我想聊聊昨天", onSend)
         }
+    }
+}
+
+@Composable
+private fun TopicStarterRow(
+    text: String,
+    onSend: (String) -> Unit,
+) {
+    L2Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onSend(text) },
+    ) {
+        Text(
+            text = "▸ $text",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurface,
+        )
     }
 }
 
