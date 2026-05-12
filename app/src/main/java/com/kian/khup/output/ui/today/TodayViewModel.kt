@@ -12,6 +12,7 @@ import com.kian.khup.core.data.db.TodayNarrationDao
 import com.kian.khup.core.data.db.entities.AnomalySuggestion
 import com.kian.khup.core.data.repository.AnomalySuggestionRepository
 import com.kian.khup.core.data.repository.BehaviorReportRepository
+import com.kian.khup.core.data.repository.DailyPlanRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.Job
@@ -27,6 +28,7 @@ import kotlinx.coroutines.launch
 class TodayViewModel @Inject constructor(
     private val behaviorReportRepository: BehaviorReportRepository,
     private val suggestionRepository: AnomalySuggestionRepository,
+    private val dailyPlanRepository: DailyPlanRepository,
     private val eventDao: EventDao,
     private val anomalyDao: AttentionAnomalyDao,
     private val appSessionDao: AppSessionDao,
@@ -51,7 +53,10 @@ class TodayViewModel @Inject constructor(
         object Empty : SuggestionCardState()
         object Generating : SuggestionCardState()
         data class Pending(val suggestion: AnomalySuggestion) : SuggestionCardState()
-        data class RecentAccepted(val suggestion: AnomalySuggestion) : SuggestionCardState()
+        data class RecentAccepted(
+            val suggestion: AnomalySuggestion,
+            val acceptedAtMs: Long,
+        ) : SuggestionCardState()
     }
 
     data class UiState(
@@ -71,6 +76,7 @@ class TodayViewModel @Inject constructor(
     private var pendingRejectId: Long? = null
     private var generationTimeoutJob: Job? = null
     private var recentAcceptedSuggestion: AnomalySuggestion? = null
+    private var recentAcceptedAtMs: Long = 0L
 
     init {
         val todayMs = todayStartLocalMs()
@@ -97,7 +103,7 @@ class TodayViewModel @Inject constructor(
                         generationTimeoutJob?.cancel()
                         SuggestionCardState.Pending(suggestion)
                     }
-                    accepted != null -> SuggestionCardState.RecentAccepted(accepted)
+                    accepted != null -> SuggestionCardState.RecentAccepted(accepted, recentAcceptedAtMs)
                     isWaitingForGeneration -> SuggestionCardState.Generating
                     else -> SuggestionCardState.Empty
                 }
@@ -154,10 +160,38 @@ class TodayViewModel @Inject constructor(
             val suggestion = (_uiState.value.suggestionCardState as? SuggestionCardState.Pending)
                 ?.suggestion ?: return@launch
             suggestionRepository.accept(id)
+            dailyPlanRepository.addFromSuggestion(suggestion)
+            val now = System.currentTimeMillis()
             recentAcceptedSuggestion = suggestion
-            _uiState.update { it.copy(suggestionCardState = SuggestionCardState.RecentAccepted(suggestion)) }
+            recentAcceptedAtMs = now
+            _uiState.update {
+                it.copy(suggestionCardState = SuggestionCardState.RecentAccepted(suggestion, now))
+            }
         }
     }
+
+    /**
+     * 用户点首页"和 AI 聊聊"主按钮：状态保持 PENDING，仅推上下文 + 导航。
+     * 沿用 confirmRejectAndChat 的 context builder（reason = null）。
+     */
+    fun discussSuggestion(id: Long) {
+        val suggestion = (_uiState.value.suggestionCardState as? SuggestionCardState.Pending)
+            ?.suggestion ?: return
+        if (suggestion.id != id) return
+        viewModelScope.launch {
+            val context = buildDiscussContext(suggestion)
+            aiContextBridge.setPending(context, suggestion.id)
+            _uiState.update { it.copy(navigationEvent = NavigationEvent.GoToAi) }
+        }
+    }
+
+    private fun buildDiscussContext(suggestion: AnomalySuggestion): String = """
+        我想聊聊这条建议为什么给我。
+
+        建议：${suggestion.actionText}
+
+        你说是因为：${suggestion.whyText}
+    """.trimIndent()
 
     fun postponeSuggestion(id: Long) {
         viewModelScope.launch {

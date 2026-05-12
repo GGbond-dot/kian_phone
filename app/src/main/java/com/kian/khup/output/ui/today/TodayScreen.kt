@@ -81,6 +81,7 @@ fun TodayScreen(
                     onAccept = viewModel::acceptSuggestion,
                     onPostpone = viewModel::postponeSuggestion,
                     onReject = viewModel::openRejectDialog,
+                    onDiscuss = viewModel::discussSuggestion,
                 )
             }
             item {

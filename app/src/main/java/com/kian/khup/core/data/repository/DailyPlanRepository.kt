@@ -2,6 +2,7 @@ package com.kian.khup.core.data.repository
 
 import com.kian.khup.common.util.todayStartLocalMs
 import com.kian.khup.core.data.db.DailyPlanDao
+import com.kian.khup.core.data.db.entities.AnomalySuggestion
 import com.kian.khup.core.data.db.entities.DailyPlan
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -13,6 +14,7 @@ interface DailyPlanRepository {
     fun observeTodayProgress(): Flow<Pair<Int, Int>>
 
     suspend fun add(title: String, note: String? = null)
+    suspend fun addFromSuggestion(suggestion: AnomalySuggestion)
     suspend fun toggleDone(id: Long)
     suspend fun updateContent(id: Long, title: String, note: String?)
     suspend fun delete(id: Long)
@@ -44,6 +46,20 @@ class DailyPlanRepositoryImpl @Inject constructor(
                 dayStartMs = todayStartLocalMs(),
                 createdAt = now,
                 sortOrder = (now / 1000).toInt(),
+            )
+        )
+    }
+
+    override suspend fun addFromSuggestion(suggestion: AnomalySuggestion) {
+        val now = System.currentTimeMillis()
+        dao.insert(
+            DailyPlan(
+                title = suggestion.actionText.trim().take(100),
+                note = suggestion.whyText.trim().take(500).takeIf { it.isNotBlank() },
+                dayStartMs = todayStartLocalMs(),
+                createdAt = now,
+                sortOrder = (now / 1000).toInt(),
+                sourceSuggestionId = suggestion.id,
             )
         )
     }

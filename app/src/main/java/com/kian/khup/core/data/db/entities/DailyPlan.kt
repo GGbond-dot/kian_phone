@@ -11,6 +11,7 @@ import kotlinx.serialization.Serializable
     indices = [
         Index("dayStartMs"),
         Index("isDone"),
+        Index("sourceSuggestionId"),
     ],
 )
 data class DailyPlan(
@@ -22,4 +23,6 @@ data class DailyPlan(
     val createdAt: Long,
     val completedAt: Long? = null,
     val sortOrder: Int = 0,
+    /** 来自哪条 AnomalySuggestion；null = 用户手动添加。见 ui-redesign §4.5。 */
+    val sourceSuggestionId: Long? = null,
 )
