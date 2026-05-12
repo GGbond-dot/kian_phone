@@ -2,6 +2,7 @@ package com.kian.khup.output.ui.settings
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -79,15 +80,27 @@ fun AiApiScreen(
                 visualTransformation = PasswordVisualTransformation(),
                 label = { Text("API Key") },
             )
-            TextButton(
-                onClick = {
-                    viewModel.setApiBaseUrl(baseUrl)
-                    viewModel.setApiModel(model)
-                    viewModel.setApiKey(key)
-                },
+            Row(
                 modifier = Modifier.align(Alignment.End),
+                horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
             ) {
-                Text("保存 API 配置")
+                TextButton(
+                    onClick = {
+                        key = ""
+                        viewModel.setApiKey("")
+                    },
+                ) {
+                    Text("清除 API Key")
+                }
+                TextButton(
+                    onClick = {
+                        viewModel.setApiBaseUrl(baseUrl)
+                        viewModel.setApiModel(model)
+                        viewModel.setApiKey(key)
+                    },
+                ) {
+                    Text("保存 API 配置")
+                }
             }
         }
     }
