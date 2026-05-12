@@ -214,7 +214,7 @@ private fun AiSettingsRows(
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(Spacing.xxs)) {
         SettingsRow("调用模式", providerModeLabel(settings.providerMode), onCallModeClick)
-        SettingsRow("API 配置", if (settings.hasApiConfig) "✓ 已配置" else "⚠ 未配置", onApiClick)
+        SettingsRow("API 配置", apiConfigLabel(settings), onApiClick)
         SettingsRow("本地模型", if (modelState.isReady) "✓ 已就绪" else "⚠ 未找到", onLocalModelClick)
     }
 }
@@ -525,6 +525,9 @@ private fun providerModeLabel(mode: AiProviderMode): String = when (mode) {
     AiProviderMode.LocalOnly -> "仅本地"
     AiProviderMode.ApiOnly -> "仅 API"
 }
+
+private fun apiConfigLabel(settings: AiSettings): String =
+    if (settings.hasApiConfig) "✓ 已配置 · ${providerModeLabel(settings.providerMode)}" else "⚠ 未配置"
 
 private enum class ManualPermission {
     MiuiAutostart,

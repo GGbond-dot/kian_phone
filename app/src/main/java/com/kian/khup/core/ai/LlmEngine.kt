@@ -26,4 +26,14 @@ interface LlmEngine {
     suspend fun runSmokeTest(): Result<String>
 
     suspend fun generate(prompt: String, tier: TaskTier = TaskTier.Auto): Result<String>
+
+    suspend fun generateStreaming(
+        prompt: String,
+        tier: TaskTier = TaskTier.Auto,
+        onDelta: (String) -> Unit,
+    ): Result<String> {
+        val result = generate(prompt, tier)
+        result.onSuccess { onDelta(it) }
+        return result
+    }
 }

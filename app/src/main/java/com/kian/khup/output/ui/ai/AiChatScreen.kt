@@ -90,6 +90,14 @@ fun AiChatScreen(
         }
     }
 
+    LaunchedEffect(uiState.prefilledInput) {
+        val prefilled = uiState.prefilledInput
+        if (prefilled != null) {
+            if (input.isBlank()) input = prefilled
+            viewModel.consumePrefilledInput()
+        }
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -183,7 +191,7 @@ fun AiChatScreen(
             items(uiState.messages) { message ->
                 ChatMessageCard(message)
             }
-            if (uiState.isGenerating) {
+            if (uiState.isGenerating && uiState.messages.lastOrNull()?.role != ChatRole.Assistant) {
                 item {
                     BreathingDots()
                 }

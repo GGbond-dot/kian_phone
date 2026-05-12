@@ -22,10 +22,12 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.kian.khup.core.ai.AiProviderMode
 import com.kian.khup.output.ui.theme.Spacing
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -34,6 +36,7 @@ fun AiApiScreen(
     onBack: () -> Unit,
     viewModel: SettingsViewModel = hiltViewModel(),
 ) {
+    val context = LocalContext.current
     val settings by viewModel.aiSettings.collectAsStateWithLifecycle()
     var baseUrl by remember(settings.apiBaseUrl) { mutableStateOf(settings.apiBaseUrl) }
     var model by remember(settings.apiModel) { mutableStateOf(settings.apiModel) }
@@ -97,6 +100,12 @@ fun AiApiScreen(
                         viewModel.setApiBaseUrl(baseUrl)
                         viewModel.setApiModel(model)
                         viewModel.setApiKey(key)
+                        if (baseUrl.isNotBlank() && model.isNotBlank() && key.isNotBlank()) {
+                            viewModel.setProviderMode(AiProviderMode.ApiOnly)
+                            android.widget.Toast.makeText(context, "已保存，并切换为仅 API", android.widget.Toast.LENGTH_SHORT).show()
+                        } else {
+                            android.widget.Toast.makeText(context, "已保存 API 配置", android.widget.Toast.LENGTH_SHORT).show()
+                        }
                     },
                 ) {
                     Text("保存 API 配置")

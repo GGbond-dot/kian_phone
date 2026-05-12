@@ -35,6 +35,7 @@ class AiChatViewModel @Inject constructor(
 
     private var cachedUserContext: String = ""
     private var cachedContextMode: AiProviderMode? = null
+    private var pendingLinkedSuggestionId: Long? = null
 
     private val _uiState = MutableStateFlow(
         AiChatUiState(
@@ -50,8 +51,7 @@ class AiChatViewModel @Inject constructor(
         }
 
         // 入口分流：来自建议卡 / FAB 的 AI 入口时，AiContextBridge 里有预填上下文。
-        // 这种情况下不复用最近的会话，而是新建一条 ChatSession，
-        // 然后自动把预填消息当作用户输入发出。
+        // 这种情况下不复用最近的会话，而是把文本放进输入框，等用户确认后再发送。
         // 详见 worklog/技术方案_行为线MVP/07_补丁_不适合后AI讨论.md §5 §9.3。
         val pending = aiContextBridge.consumePending()
         val sessionToOpen = aiContextBridge.consumeSessionToOpen()
@@ -62,7 +62,7 @@ class AiChatViewModel @Inject constructor(
                 if (!initialized) {
                     initialized = true
                     if (pending != null) {
-                        startSessionForRejectedSuggestion(pending, sessions)
+                        prefillPendingContext(pending, sessions)
                         return@collect
                     }
                     if (sessionToOpen != null && sessions.any { it.id == sessionToOpen }) {
@@ -111,29 +111,24 @@ class AiChatViewModel @Inject constructor(
         }
     }
 
-    private suspend fun startSessionForRejectedSuggestion(
+    private fun prefillPendingContext(
         pending: AiContextBridge.PendingContext,
         sessions: List<ChatSession>,
     ) {
-        val now = System.currentTimeMillis()
-        val sessionId = chatSessionDao.insert(
-            ChatSession(
-                title = if (pending.suggestionId == null) "聊聊今天" else "讨论被拒建议",
-                createdAt = now,
-                updatedAt = now,
-                lastMessagePreview = pending.message.take(PREVIEW_LEN),
-                linkedSuggestionId = pending.suggestionId,
-            )
-        )
+        pendingLinkedSuggestionId = pending.suggestionId
         _uiState.update {
             it.copy(
                 sessions = sessions,
-                currentSessionId = sessionId,
+                currentSessionId = null,
                 messages = emptyList(),
+                prefilledInput = pending.message,
                 error = null,
             )
         }
-        send(pending.message)
+    }
+
+    fun consumePrefilledInput() {
+        _uiState.update { it.copy(prefilledInput = null) }
     }
 
     private suspend fun refreshUserContext(mode: AiProviderMode) {
@@ -223,15 +218,20 @@ class AiChatViewModel @Inject constructor(
             // 没出现在 state.sessions（observeAll 的下一帧才推上来）。
             val isRejectDiscussion = chatSessionDao.findById(sessionId)?.linkedSuggestionId != null
             val prompt = buildPrompt(_uiState.value.messages, mode, toolRun, isRejectDiscussion)
-            llmEngine.generate(prompt)
+            val streamed = StringBuilder()
+            llmEngine.generateStreaming(prompt) { delta ->
+                streamed.append(delta)
+                appendAssistantDelta(delta)
+            }
                 .onSuccess { response ->
+                    val finalText = response.ifBlank { streamed.toString() }.ifBlank { "模型返回了空内容。" }
+                    ensureAssistantMessage(finalText)
                     val assistant = ChatMessage(
                         role = ChatRole.Assistant,
-                        text = response.ifBlank { "模型返回了空内容。" },
+                        text = finalText,
                     )
                     _uiState.update {
                         it.copy(
-                            messages = it.messages + assistant,
                             isGenerating = false,
                             modelState = llmEngine.modelState(),
                         )
@@ -247,6 +247,33 @@ class AiChatViewModel @Inject constructor(
                         )
                     }
                 }
+        }
+    }
+
+    private fun appendAssistantDelta(delta: String) {
+        if (delta.isEmpty()) return
+        _uiState.update { state ->
+            val messages = state.messages
+            val last = messages.lastOrNull()
+            val updatedMessages = if (last?.role == ChatRole.Assistant) {
+                messages.dropLast(1) + last.copy(text = last.text + delta)
+            } else {
+                messages + ChatMessage(ChatRole.Assistant, delta)
+            }
+            state.copy(messages = updatedMessages, modelState = llmEngine.modelState())
+        }
+    }
+
+    private fun ensureAssistantMessage(text: String) {
+        _uiState.update { state ->
+            val messages = state.messages
+            val last = messages.lastOrNull()
+            val updatedMessages = if (last?.role == ChatRole.Assistant) {
+                messages.dropLast(1) + last.copy(text = text)
+            } else {
+                messages + ChatMessage(ChatRole.Assistant, text)
+            }
+            state.copy(messages = updatedMessages)
         }
     }
 
@@ -290,8 +317,10 @@ class AiChatViewModel @Inject constructor(
                 createdAt = now,
                 updatedAt = now,
                 lastMessagePreview = firstUserText.take(PREVIEW_LEN),
+                linkedSuggestionId = pendingLinkedSuggestionId,
             )
         )
+        pendingLinkedSuggestionId = null
         _uiState.update { it.copy(currentSessionId = id) }
         // isFirstMessage is informational; title 已基于首条消息生成。
         return id
@@ -385,6 +414,7 @@ data class AiChatUiState(
     val error: String? = null,
     val sessions: List<ChatSession> = emptyList(),
     val currentSessionId: Long? = null,
+    val prefilledInput: String? = null,
 ) {
     val currentTitle: String
         get() = sessions.firstOrNull { it.id == currentSessionId }?.title ?: "新对话"

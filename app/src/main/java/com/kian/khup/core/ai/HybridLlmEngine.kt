@@ -52,6 +52,45 @@ class HybridLlmEngine @Inject constructor(
         }
     }
 
+    override suspend fun generateStreaming(
+        prompt: String,
+        tier: TaskTier,
+        onDelta: (String) -> Unit,
+    ): Result<String> {
+        val settings = settingsRepository.currentSettings()
+
+        when (tier) {
+            TaskTier.Light -> {
+                Log.i(TAG, "tier=Light → local")
+                return localEngine.generateStreaming(prompt, tier, onDelta)
+            }
+            TaskTier.Heavy -> {
+                if (!settings.hasApiConfig) {
+                    return Result.failure(IllegalStateException("Heavy 任务需要 API 通道,但 API 未配置。去 Settings 配置或降级到 Light。"))
+                }
+                Log.i(TAG, "tier=Heavy → api stream")
+                return apiEngine.generateStreaming(prompt, tier, onDelta)
+            }
+            TaskTier.Auto -> Unit
+        }
+
+        return when (settings.providerMode) {
+            AiProviderMode.LocalOnly -> localEngine.generateStreaming(prompt, tier, onDelta)
+            AiProviderMode.ApiOnly -> apiEngine.generateStreaming(prompt, tier, onDelta)
+            AiProviderMode.LocalFirst -> {
+                val localResult = localEngine.generateStreaming(prompt, tier, onDelta)
+                if (localResult.isSuccess) {
+                    localResult
+                } else if (settings.hasApiConfig) {
+                    Log.w(TAG, "local streaming generation failed, falling back to API", localResult.exceptionOrNull())
+                    apiEngine.generateStreaming(prompt, tier, onDelta)
+                } else {
+                    localResult
+                }
+            }
+        }
+    }
+
     private companion object {
         const val TAG = "KHUP/AI"
     }

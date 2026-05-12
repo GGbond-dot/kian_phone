@@ -23,9 +23,12 @@ import io.ktor.client.plugins.expectSuccess
 import io.ktor.client.request.bearerAuth
 import io.ktor.client.request.header
 import io.ktor.client.request.post
+import io.ktor.client.request.preparePost
 import io.ktor.client.request.setBody
+import io.ktor.client.statement.bodyAsChannel
 import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
+import io.ktor.utils.io.readUTF8Line
 import io.ktor.serialization.kotlinx.json.json
 
 @Singleton
@@ -95,6 +98,86 @@ class ApiLlmEngine @Inject constructor(
         }
     }
 
+    suspend fun generateStreaming(
+        prompt: String,
+        tier: TaskTier = TaskTier.Auto,
+        onDelta: (String) -> Unit,
+    ): Result<String> = withContext(Dispatchers.IO) {
+        runCatching {
+            val settings = settingsRepository.currentSettings()
+            require(settings.hasApiConfig) {
+                "API 配置不完整：需要 Base URL、API Key、Model。"
+            }
+
+            val redacted = PromptRedactor.redact(prompt)
+            val url = "${settings.apiBaseUrl.trimEnd('/')}/chat/completions"
+            val requestBody = buildJsonObject {
+                put("model", settings.apiModel)
+                put("messages", buildJsonArray {
+                    add(
+                        buildJsonObject {
+                            put("role", "user")
+                            put("content", redacted)
+                        }
+                    )
+                })
+                put("temperature", 0.7)
+                put("stream", true)
+            }.toString()
+
+            val redactionDelta = prompt.length - redacted.length
+            Log.i(TAG, "api stream started, url=$url, model=${settings.apiModel}, redaction_delta=$redactionDelta")
+            val full = StringBuilder()
+            client.preparePost(url) {
+                bearerAuth(settings.apiKey)
+                header(HttpHeaders.ContentType, ContentType.Application.Json.toString())
+                setBody(requestBody)
+            }.execute { response ->
+                val channel = response.bodyAsChannel()
+                while (true) {
+                    val line = channel.readUTF8Line() ?: break
+                    val data = line.removePrefix("data:").trim()
+                    if (data.isBlank()) continue
+                    if (data == "[DONE]") break
+                    val delta = parseStreamDelta(data)
+                    if (delta.isNotEmpty()) {
+                        full.append(delta)
+                        onDelta(delta)
+                    }
+                }
+            }
+
+            val content = full.toString().trim()
+            require(content.isNotBlank()) { "API 流式返回为空。" }
+            logLlmOutput("stream response", content)
+            content
+        }.onFailure { error ->
+            Log.e(TAG, "api stream failed", error)
+        }
+    }
+
+    private fun parseStreamDelta(data: String): String =
+        runCatching {
+            val choice = json.parseToJsonElement(data)
+                .jsonObject["choices"]
+                ?.jsonArray
+                ?.firstOrNull()
+                ?.jsonObject
+            choice
+                ?.get("delta")
+                ?.jsonObject
+                ?.get("content")
+                ?.jsonPrimitive
+                ?.contentOrNull
+                ?: choice
+                    ?.get("message")
+                    ?.jsonObject
+                    ?.get("content")
+                    ?.jsonPrimitive
+                    ?.contentOrNull
+                ?: ""
+        }.getOrDefault("")
+
     private fun logLlmOutput(content: String) {
         // 隐私底线：完整 LLM 输出绝不能写 logcat。DEBUG 只写 redact 摘要；release 完全静默。
         if (!BuildConfig.DEBUG) return
@@ -102,8 +185,14 @@ class ApiLlmEngine @Inject constructor(
         Log.d(TAG, "api chat response (redacted, ${content.length}ch): $redacted")
     }
 
+    private fun logLlmOutput(logLabel: String, content: String) {
+        if (!BuildConfig.DEBUG) return
+        val redacted = content.take(80).replace(Regex("[\\r\\n]"), " ") + "..."
+        Log.d(TAG, "api $logLabel (redacted, ${content.length}ch): $redacted")
+    }
+
     private companion object {
         const val TAG = "KHUP/AI"
-        const val API_TIMEOUT_MS = 30_000L
+        const val API_TIMEOUT_MS = 60_000L
     }
 }
