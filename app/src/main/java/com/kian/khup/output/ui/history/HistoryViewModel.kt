@@ -40,6 +40,33 @@ class HistoryViewModel @Inject constructor(
         aiContextBridge.setSessionToOpen(sessionId)
     }
 
+    fun discussFromReview(anomaly: AttentionAnomaly) {
+        aiContextBridge.setPending(
+            """
+                我注意到 KHUP 提到这个模式：${anomaly.title}。
+                这意味着什么？我应该怎么看？
+            """.trimIndent()
+        )
+    }
+
+    fun discussFromReview(suggestion: AnomalySuggestion) {
+        aiContextBridge.setPending(
+            """
+                能再讲讲这条建议吗？
+
+                建议：${suggestion.actionText}
+
+                你说是因为：${suggestion.whyText}
+
+                我当时${suggestion.status.toStatusZh()}了。
+            """.trimIndent()
+        )
+    }
+
+    fun discussTrendFromReview(narrationDiff: String) {
+        aiContextBridge.setPending("这周相比上周，$narrationDiff。能解读一下吗？")
+    }
+
     data class TrendsData(
         val periodDays: Int = 7,
         val screenTimeByDay: List<DailyUsageTotal> = emptyList(),
@@ -141,4 +168,12 @@ class HistoryViewModel @Inject constructor(
     private companion object {
         const val DEFAULT_PERIOD_DAYS = 7
     }
+}
+
+private fun String.toStatusZh(): String = when (this) {
+    "ACCEPTED" -> "接受"
+    "REJECTED" -> "拒绝"
+    "POSTPONED" -> "换一条"
+    "PENDING" -> "还没决定"
+    else -> "看过"
 }
