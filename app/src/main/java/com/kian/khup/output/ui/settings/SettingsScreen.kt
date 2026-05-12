@@ -201,8 +201,6 @@ fun SettingsScreen(
             onClearConfirm = viewModel::clearAllData,
             onExportRequest = viewModel::exportData,
         )
-
-        PrivacyCard()
     }
 }
 
@@ -493,27 +491,13 @@ private fun DataCard(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
     ) {
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text("数据", style = MaterialTheme.typography.titleMedium)
             SettingsRow("导出全部数据", onClick = onExportRequest)
             SettingsRow("清空历史数据") { showConfirmDialog = true }
-            SettingsRow("数据保留策略") {}
-        }
-    }
-}
-
-@Composable
-private fun PrivacyCard() {
-    val context = LocalContext.current
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-    ) {
-        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text("隐私", style = MaterialTheme.typography.titleMedium) // TODO: strings.xml
-            PrivacyStaticRow("LLM 输出不写日志")
-            PrivacyStaticRow("用户输入会脱敏后送 prompt")
-            SettingsRow("哪些字段会出端") {
-                android.widget.Toast.makeText(context, "下个版本实现", android.widget.Toast.LENGTH_SHORT).show()
+            SettingsRow("数据保留策略") {
+                android.widget.Toast.makeText(context, "当前保留近期数据，旧数据会按任务自动清理", android.widget.Toast.LENGTH_SHORT).show()
+            }
+            SettingsRow("隐私说明") {
+                android.widget.Toast.makeText(context, "你的数据从不离开这台手机，除非你主动启用 API 对话", android.widget.Toast.LENGTH_LONG).show()
             }
         }
     }
@@ -540,19 +524,6 @@ private fun providerModeLabel(mode: AiProviderMode): String = when (mode) {
     AiProviderMode.LocalFirst -> "本地优先"
     AiProviderMode.LocalOnly -> "仅本地"
     AiProviderMode.ApiOnly -> "仅 API"
-}
-
-@Composable
-private fun PrivacyStaticRow(title: String) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 8.dp, vertical = 4.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-    ) {
-        Text(title, style = MaterialTheme.typography.bodyMedium)
-        Text("✓", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary)
-    }
 }
 
 private enum class ManualPermission {
