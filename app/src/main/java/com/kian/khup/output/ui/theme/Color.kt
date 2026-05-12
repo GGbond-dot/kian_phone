@@ -2,17 +2,28 @@ package com.kian.khup.output.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-// 简洁中性色板。后续要换主题色直接改这里。
-val Primary = Color(0xFF3B6EA8)
-val OnPrimary = Color(0xFFFFFFFF)
-val PrimaryContainer = Color(0xFFD3E3FD)
-val OnPrimaryContainer = Color(0xFF001C38)
+// Primary 墨绿系
+val Primary = Color(0xFF2F4F4F)
+val PrimaryDim = Color(0x992F4F4F)
+val OnPrimary = Color(0xFFFAFAF7)
 
-val Secondary = Color(0xFF555F71)
-val OnSecondary = Color(0xFFFFFFFF)
+// Accent 暖橙系（仅用于"今天值得做的一件事"主按钮）
+val Accent = Color(0xFFC56A1A)
+val OnAccent = Color(0xFFFFFFFF)
 
-val Surface = Color(0xFFFAFAFC)
-val OnSurface = Color(0xFF1A1C1E)
+// Surface 暖白系
+val Surface = Color(0xFFFAFAF7)
+val SurfaceDim = Color(0xFFF2F2EE)
+val SurfaceBright = Color(0xFFFFFFFF)
+val Outline = Color(0xFFE2E2DC)
+val OutlineSoft = Color(0xFFEDEDE7)
 
-val SurfaceDark = Color(0xFF131316)
-val OnSurfaceDark = Color(0xFFE3E2E6)
+// Text
+val TextPrimary = Color(0xFF1A1A1A)
+val TextSecondary = Color(0xFF6A6A66)
+val TextTertiary = Color(0xFF999996)
+
+// Semantic
+val Success = Color(0xFF4A6B3A)
+val Warning = Color(0xFFB5651D)
+val Error = Color(0xFF8B3A2E)
