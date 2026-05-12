@@ -35,6 +35,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -47,6 +48,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -56,6 +58,8 @@ import com.kian.khup.BuildConfig
 import com.kian.khup.core.ai.AiProviderMode
 import com.kian.khup.core.data.db.entities.ChatSession
 import com.kian.khup.output.ui.theme.L2Surface
+import com.kian.khup.output.ui.theme.OnPrimary
+import com.kian.khup.output.ui.theme.PrimaryDim
 import com.kian.khup.output.ui.theme.Spacing
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -389,18 +393,30 @@ private fun TopicStarterRow(
 @Composable
 private fun ChatMessageCard(message: ChatMessage) {
     val isUser = message.role == ChatRole.User
-    val containerColor = if (isUser) {
-        MaterialTheme.colorScheme.primaryContainer
-    } else {
-        MaterialTheme.colorScheme.surface
-    }
-
-    Card(
+    Row(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = containerColor),
+        horizontalArrangement = if (isUser) Arrangement.End else Arrangement.Start,
     ) {
-        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text(message.text, style = MaterialTheme.typography.bodyMedium)
+        if (isUser) {
+            Surface(
+                modifier = Modifier.fillMaxWidth(0.8f),
+                color = PrimaryDim,
+                contentColor = OnPrimary,
+                shape = RoundedCornerShape(16.dp),
+            ) {
+                Text(
+                    text = message.text,
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.padding(Spacing.md),
+                )
+            }
+        } else {
+            Text(
+                text = message.text,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.fillMaxWidth(0.9f),
+            )
         }
     }
 }
