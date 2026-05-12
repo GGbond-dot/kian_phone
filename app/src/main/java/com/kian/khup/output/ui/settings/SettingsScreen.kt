@@ -1,5 +1,7 @@
 package com.kian.khup.output.ui.settings
 
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -48,6 +50,9 @@ import com.kian.khup.core.ai.AiProviderMode
 import com.kian.khup.core.ai.AiSettings
 import com.kian.khup.core.ai.LlmModelState
 import com.kian.khup.core.data.repository.InterventionSettings
+import com.kian.khup.output.ui.theme.Spacing
+import com.kian.khup.output.ui.theme.Success
+import com.kian.khup.output.ui.theme.Warning
 import kotlinx.coroutines.delay
 
 /**
@@ -114,34 +119,35 @@ fun SettingsScreen(viewModel: SettingsViewModel = hiltViewModel()) {
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+            .padding(horizontal = Spacing.screenPadding, vertical = Spacing.lg),
+        verticalArrangement = Arrangement.spacedBy(Spacing.lg),
     ) {
-        Text("权限设置", style = MaterialTheme.typography.headlineSmall)
+        Text("设置", style = MaterialTheme.typography.headlineSmall)
 
+        SectionHeader("让 KHUP 工作")
         PermissionCard(
-            title = "发送通知权限",
+            title = "系统通知",
             description = "授权后 KHUP 才能发出抖音/小红书超时提醒。没有这个权限时，只会在首页记录干预，不会弹系统通知。",
             status = PermissionStatus.Checked(postNotificationsEnabled),
             onClick = { NotificationPermissions.openAppNotificationSettings(context) },
         )
 
         PermissionCard(
-            title = "通知使用权（必需）",
+            title = "读取通知",
             description = "授权后 KHUP 才能读取其他 App 的通知。MIUI 上开启后还会有二次确认弹窗，请记得勾选「允许读取通知」。",
             status = PermissionStatus.Checked(nlsEnabled),
             onClick = { NotificationPermissions.openNotificationListenerSettings(context) },
         )
 
         PermissionCard(
-            title = "使用情况访问",
+            title = "应用使用统计",
             description = "授权后 KHUP 才能统计每个 App 的前台时长和打开次数。",
             status = PermissionStatus.Checked(usageEnabled),
             onClick = { NotificationPermissions.openUsageAccessSettings(context) },
         )
 
         PermissionCard(
-            title = "悬浮窗权限",
+            title = "悬浮窗（拦截）",
             description = "拦截抖音/小红书等算法推送时弹出强制等待卡片所必需。MIUI 默认禁用，请手动打开。",
             status = PermissionStatus.Checked(overlayEnabled),
             onClick = { NotificationPermissions.openOverlaySettings(context) },
@@ -167,12 +173,7 @@ fun SettingsScreen(viewModel: SettingsViewModel = hiltViewModel()) {
             },
         )
 
-        InterventionSettingsCard(
-            settings = interventionSettings,
-            onDouyinChange = viewModel::setDouyinLimit,
-            onXiaohongshuChange = viewModel::setXiaohongshuLimit,
-        )
-
+        SectionHeader("AI 设置")
         AiChannelCard(
             settings = aiSettings,
             modelState = aiModelState,
@@ -185,6 +186,14 @@ fun SettingsScreen(viewModel: SettingsViewModel = hiltViewModel()) {
             onRefreshModel = viewModel::refreshAiModelState,
         )
 
+        SectionHeader("干预阈值")
+        InterventionSettingsCard(
+            settings = interventionSettings,
+            onDouyinChange = viewModel::setDouyinLimit,
+            onXiaohongshuChange = viewModel::setXiaohongshuLimit,
+        )
+
+        SectionHeader("数据与隐私")
         DataCard(
             clearState = clearState,
             exportState = exportState,
@@ -194,6 +203,15 @@ fun SettingsScreen(viewModel: SettingsViewModel = hiltViewModel()) {
 
         PrivacyCard()
     }
+}
+
+@Composable
+private fun SectionHeader(text: String) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.titleLarge,
+        color = MaterialTheme.colorScheme.onSurface,
+    )
 }
 
 @Composable
@@ -516,6 +534,7 @@ private enum class ManualPermission {
     MiuiBattery,
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun PermissionCard(
     title: String,
@@ -528,15 +547,15 @@ private fun PermissionCard(
         is PermissionStatus.ManualCheck -> status.confirmed
     }
     val statusText = when (status) {
-        is PermissionStatus.Checked -> if (status.granted) "✓ 已授权" else "✗ 未授权"
-        is PermissionStatus.ManualCheck -> if (status.confirmed) "✓ 已确认" else "需手动确认"
+        is PermissionStatus.Checked -> if (status.granted) "✓ 已开" else "⚠ 未开"
+        is PermissionStatus.ManualCheck -> if (status.confirmed) "✓ 已确认" else "⚠ 需手动确认"
     }
     val statusColor = when (status) {
         is PermissionStatus.Checked -> {
-            if (status.granted) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
+            if (status.granted) Success else Warning
         }
         is PermissionStatus.ManualCheck -> {
-            if (status.confirmed) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondary
+            if (status.confirmed) Success else Warning
         }
     }
     val buttonText = when {
@@ -547,29 +566,35 @@ private fun PermissionCard(
     }
 
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .combinedClickable(
+                onClick = { if (!isGranted) onClick() },
+                onLongClick = { if (isGranted) onClick() },
+            ),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
     ) {
-        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text(title, style = MaterialTheme.typography.titleMedium)
+                Text(title, style = MaterialTheme.typography.bodyLarge)
                 Text(
                     text = statusText,
                     style = MaterialTheme.typography.labelLarge,
                     color = statusColor,
                 )
             }
-            Text(description, style = MaterialTheme.typography.bodyMedium)
-            OutlinedButton(
-                onClick = onClick,
-                enabled = !isGranted,
-                modifier = Modifier.width(112.dp),
-            ) {
-                Text(buttonText)
+            if (!isGranted) {
+                Text(description, style = MaterialTheme.typography.bodyMedium)
+                OutlinedButton(
+                    onClick = onClick,
+                    modifier = Modifier.width(112.dp),
+                ) {
+                    Text(buttonText)
+                }
             }
         }
     }
