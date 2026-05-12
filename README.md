@@ -1,113 +1,207 @@
 # KHUP
 
-> Kian Health Use Phone — 个人 Android 端消息聚合 + 数字健康管理工具。
-> 详细架构见 [`ARCHITECTURE.md`](./ARCHITECTURE.md)。
+KHUP is a personal Android app for noticing when phone use has slipped into a
+default loop, then turning that signal into a small, optional action.
 
-## 当前进度
+It is built for one real device first: Kian's Xiaomi 14. The codebase is still a
+personal product lab, not a polished public release.
 
-**Phase 1（骨架完成）**：Gradle 工程 + Manifest + Room 数据库 + NotificationListener + Compose UI 四个 tab + 权限引导。
-未接入 LLM、UsageStats、规则引擎、拦截系统（按 Phase 2-4 逐步加）。
+## Product Philosophy
 
-## 第一次运行
+KHUP is not a generic screen-time blocker, productivity tracker, or habit
+scoreboard. Its design comes from a different premise: most phone overuse is not
+just "too many minutes"; it is a return to a comfortable regression value shaped
+by algorithms, routines, fatigue, and friction.
 
-1. 用 Android Studio 打开本目录（`File → Open` 选 `kian_phone/`）。
-2. 让 Studio 自动同步 Gradle，下载 SDK / 依赖。
-   - 第一次会比较慢，国内用户可能需要科学上网或确认 `settings.gradle.kts` 里的阿里云镜像生效。
-3. 用 USB 把小米 14 接电脑，在 Studio 顶部设备选择里选中真机。
-4. 点 ▶ Run。
-5. 装上后打开 KHUP，进「设置」tab，分别授权三项权限：
-   - **通知使用权**（必需，没这个等于没装）
-   - **用机时长统计**（Phase 3 才用，可以先不开）
-   - **悬浮窗**（Phase 4 才用，可以先不开）
-6. 授权完回到「首页」，看看是否开始接收通知。
+The app is closer to an anomaly cognition coach:
 
-## 构建 / 重建
+- It observes local signals such as usage time, notifications, check-ins, and
+  recent feedback.
+- It names recurring regression patterns without moralizing them.
+- It proposes low-cost, positive-upside, rejectable actions that create optionality.
 
-Android Studio 如果找不到 `Rebuild Project` 菜单，用下面两步等价替代：
+Every suggestion should satisfy three constraints:
 
-1. `Build → Clean Project`
-2. `Build → Make Project`
+- `Low cost`: failing to do it should not create meaningful loss.
+- `Positive expected upside`: it should open a new feeling, action, perspective,
+  or piece of information.
+- `Rejectable`: the user can accept it, ask for another angle, or say it is not
+  suitable.
 
-命令行可以直接跑：
+KHUP deliberately avoids completion tracking. Accepting a suggestion is the end
+of that interaction. The app does not score discipline, compute completion rate,
+or ask the user to prove they followed through. That boundary keeps the product
+closer to a coach than an examiner.
 
-```bash
-./gradlew clean assembleDebug
-```
+Tone matters: sharp, but not humiliating. The app should be able to say "the
+algorithm is feeding you, not challenging you" without turning the user into the
+problem.
 
-如果刚改过 `KhupApplication`、Hilt 注解或 WorkManager 入口，但真机表现像旧代码，先卸载 debug 包再重新 Run：
+## Current Features
 
-```bash
-adb uninstall com.kian.khup.debug
-```
+- Today view with a compact daily observation and quick check-in.
+- Notification collection through Android Notification Listener Service.
+- Usage statistics collection for app foreground time and opening patterns.
+- Behavior-line MVP:
+  - user check-in
+  - regression pattern detection
+  - anomaly suggestion generation
+  - accept / postpone / reject feedback loop
+- AI chat with local phone context.
+- OpenAI-compatible API support, including DeepSeek-style endpoints.
+- Optional LiteRT-LM local model path for on-device generation.
+- History views for suggestions, patterns, trends, and linked AI discussions.
+- Data export and clear-data flows.
 
-## AI 聊天
+## Tech Stack
 
-AI tab 支持本地模型和 OpenAI-compatible API。默认模式是「本地优先」：
+- Android, Kotlin, minSdk 33, compileSdk 35
+- Jetpack Compose + Material 3
+- Navigation Compose
+- Hilt for dependency injection
+- Room for local persistence and schema migrations
+- WorkManager for periodic background jobs
+- Kotlin coroutines and Flow
+- Kotlinx Serialization
+- Ktor + OkHttp for OpenAI-compatible Chat Completions
+- LiteRT-LM for optional on-device LLM inference
+- Android Notification Listener Service
+- Android UsageStatsManager
 
-- **本地优先**：先尝试端侧模型；本地模型缺失或生成失败时，如果 API 配置完整就回退到 API。
-- **仅本地**：完全离线，不发网络请求。
-- **仅 API**：跳过本地模型，直接使用 API，适合先验证聊天体验。
+## Project Structure
 
-### 本地模型
-
-开发期先把 MediaPipe LLM Inference 可用的 Gemma `.task` 模型命名为 `khup_llm.task`，
-放到下面任一位置：
-
-```bash
-# App 私有目录，推荐正式使用
-/data/data/com.kian.khup.debug/files/models/khup_llm.task
-
-# 开发期临时目录，方便 adb push
-/data/local/tmp/llm/khup_llm.task
-
-# App 外部私有目录，也会被检测
-/storage/emulated/0/Android/data/com.kian.khup.debug/files/models/khup_llm.task
-```
-
-AI 页面会显示当前是否找到模型。找到后可以直接聊天，也可以点自检按钮看 `KHUP/AI` 日志。
-
-### API 模式
-
-AI 页面里填写：
-
-- `API Base URL`：例如 `https://api.openai.com/v1`，也可以填 DeepSeek/通义千问等兼容 OpenAI Chat Completions 的地址。
-- `Model`：服务端模型名，例如你账号可用的聊天模型。
-- `API Key`：只存在本机 SharedPreferences，不写进代码仓库。
-
-当前 API 请求走 `/chat/completions`，请求格式为 OpenAI-compatible chat completions。
-
-## 项目结构
-
-```
+```text
 app/src/main/java/com/kian/khup/
-├── collection/         # 采集层：通知监听、用机统计、外部 API
-├── core/               # 核心层：数据库、AI 引擎、规则引擎
-├── output/             # 输出层：UI / 提醒 / 拦截
-├── common/di/          # Hilt DI module
-├── KhupApplication.kt
-└── MainActivity.kt
+├── collection/          # notification and usage collection
+├── common/              # DI, workers, shared utilities
+├── core/
+│   ├── ai/              # local/API/hybrid LLM engines and prompt policy
+│   ├── anomaly/         # regression pattern and suggestion generation
+│   ├── classification/  # rule-based notification classification
+│   ├── data/            # Room database, DAOs, entities, repositories
+│   ├── intervention/    # foreground monitoring and intervention hooks
+│   └── summary/         # hourly/daily review generation
+└── output/ui/           # Compose screens and ViewModels
 ```
 
-## 开发约定
+## Requirements
 
-- 数据库 schema 改动期：直接 bump version + 用 destructive migration。1.0 发布前才补正式 Migration。
-- NLS 的 `onNotificationPosted` 跑在 Binder 线程，**绝不能阻塞**——任何 IO 都走 channel + 协程。
-- 自己 App 发的通知必须在 NLS 里 filter 掉（已实现），否则会循环。
-- MIUI 杀后台很激进，所有引导步骤要图文并茂（Phase 4 完善）。
+- Android Studio or command-line Android Gradle setup.
+- JDK 17.
+- Android 13+ device. The app is developed against a Xiaomi 14 / HyperOS setup,
+  so permission behavior may vary on other devices.
+- USB debugging enabled if installing from the command line.
 
-## 调试常用命令
+## Build
 
 ```bash
-# 强制允许 / 禁止 NLS（开发期免得反复点设置）
+./gradlew assembleDebug
+```
+
+Install the debug build:
+
+```bash
+adb install -r app/build/outputs/apk/debug/app-debug.apk
+```
+
+The debug application id is:
+
+```text
+com.kian.khup.debug
+```
+
+## First Run
+
+1. Open the app.
+2. Go to `Settings`.
+3. Grant the required Android permissions:
+   - notification posting
+   - notification listener access
+   - usage access
+   - overlay permission if testing intervention flows
+4. On MIUI / HyperOS, also confirm:
+   - autostart
+   - unrestricted battery policy
+5. Return to `Today` and use the quick check-in or the AI entry point.
+
+## AI Setup
+
+KHUP supports three modes:
+
+- `Local first`: try the on-device model first, then fall back to API when configured.
+- `Local only`: never call the network.
+- `API only`: use the configured OpenAI-compatible API directly.
+
+### API Mode
+
+Open `Settings -> AI Settings -> API Config` and fill:
+
+- `API Base URL`, for example `https://api.deepseek.com`
+- `Model`, for example the model name available to your account
+- `API Key`
+
+When the API config is complete, the app switches to `API only`.
+
+The key is stored locally through Android preferences with Android Keystore-backed
+encryption. It is not committed to the repository.
+
+The chat path uses `/chat/completions` with OpenAI-compatible request/response
+format. Streaming responses are supported for the chat UI, so the assistant text
+can appear progressively once the server starts returning tokens.
+
+### Local Model
+
+The local engine looks for a LiteRT-LM model named:
+
+```text
+gemma-4-E2B-it.litertlm
+```
+
+Candidate locations:
+
+```text
+/data/data/com.kian.khup.debug/files/models/gemma-4-E2B-it.litertlm
+/storage/emulated/0/Android/data/com.kian.khup.debug/files/models/gemma-4-E2B-it.litertlm
+/data/local/tmp/llm/gemma-4-E2B-it.litertlm
+```
+
+The local path is optional if you use API-only mode.
+
+## Common Debug Commands
+
+Enable notification listener access during development:
+
+```bash
 adb shell cmd notification allow_listener com.kian.khup.debug/com.kian.khup.collection.notification.MessageListener
-adb shell cmd notification disallow_listener com.kian.khup.debug/com.kian.khup.collection.notification.MessageListener
+```
 
-# dump 通知完整 extras（开发金矿）
-adb shell dumpsys notification --noredact
+Inspect KHUP AI logs:
 
-# 查看 KHUP 日志
-adb logcat -s KHUP/NLS:V
-
-# 查看本地 AI 日志
+```bash
 adb logcat -s KHUP/AI:V
 ```
+
+Inspect notification listener logs:
+
+```bash
+adb logcat -s KHUP/NLS:V
+```
+
+Read AI settings from a debug install:
+
+```bash
+adb shell run-as com.kian.khup.debug cat shared_prefs/khup.ai_settings.xml
+```
+
+## Development Notes
+
+- Do not log full LLM prompts or full model outputs. Debug logs should only contain
+  redacted summaries.
+- Notification listener callbacks must stay lightweight; database work and model
+  work should happen off the Binder callback path.
+- Room migrations should preserve data. Current schemas are checked into
+  `app/schemas/`.
+- AI output used for suggestions must remain low-cost, positive-upside, and
+  rejectable.
+- The product should not introduce scoring, discipline grades, streak pressure,
+  or completion-rate mechanics.
