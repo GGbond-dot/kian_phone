@@ -93,7 +93,7 @@ class AnomalySuggestionGeneratorImpl @Inject constructor(
     private suspend fun generateWithRetry(prompt: String): ParsedSuggestion? {
         // 第一次失败若是 costLevel 非 LOW，按 spec §4.2 step 7 再试一次；其他失败直接交给 fallback。
         repeat(2) { attempt ->
-            val raw = llm.generate(prompt, TaskTier.Light).getOrElse { error ->
+            val raw = llm.generate(prompt, TaskTier.Heavy).getOrElse { error ->
                 Log.w(TAG, "suggestion LLM failed (attempt=$attempt)", error)
                 return@repeat
             }

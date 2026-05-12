@@ -61,7 +61,7 @@ class RegressionPatternGeneratorImpl @Inject constructor(
             recent = recentPatterns,
         )
 
-        val rawOutput = llm.generate(prompt, TaskTier.Light).getOrElse { error ->
+        val rawOutput = llm.generate(prompt, TaskTier.Heavy).getOrElse { error ->
             Log.w(TAG, "pattern LLM failed", error)
             return@withContext null
         }

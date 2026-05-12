@@ -307,7 +307,7 @@ class TodayViewModel @Inject constructor(
     private fun scheduleGenerationTimeout() {
         generationTimeoutJob?.cancel()
         generationTimeoutJob = viewModelScope.launch {
-            delay(30_000L)
+            delay(90_000L)
             if (isWaitingForGeneration) {
                 isWaitingForGeneration = false
                 _uiState.update { state ->
