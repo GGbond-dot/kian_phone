@@ -24,6 +24,9 @@ import com.kian.khup.output.ui.ai.AiChatScreen
 import com.kian.khup.output.ui.dailyplan.DailyPlanScreen
 import com.kian.khup.output.ui.history.HistoryScreen
 import com.kian.khup.output.ui.messages.NotificationsScreen
+import com.kian.khup.output.ui.settings.AiApiScreen
+import com.kian.khup.output.ui.settings.AiCallModeScreen
+import com.kian.khup.output.ui.settings.AiLocalModelScreen
 import com.kian.khup.output.ui.settings.SettingsScreen
 import com.kian.khup.output.ui.today.TodayScreen
 import com.kian.khup.output.ui.usage.AppUsageScreen
@@ -36,6 +39,9 @@ private enum class Tab(val route: String, val label: String, val icon: ImageVect
 
 private const val ROUTE_AI = "ai"
 private const val ROUTE_HISTORY_LEGACY = "history"
+private const val ROUTE_SETTINGS_AI_CALL_MODE = "settings/ai_call_mode"
+private const val ROUTE_SETTINGS_AI_API = "settings/ai_api"
+private const val ROUTE_SETTINGS_AI_LOCAL_MODEL = "settings/ai_local_model"
 
 @Composable
 fun MainScreen() {
@@ -96,7 +102,22 @@ fun MainScreen() {
                 )
             }
             composable(ROUTE_AI) { AiChatScreen(onBack = { navController.popBackStack() }) }
-            composable(Tab.Settings.route) { SettingsScreen() }
+            composable(Tab.Settings.route) {
+                SettingsScreen(
+                    onNavigateToAiCallMode = { navController.navigate(ROUTE_SETTINGS_AI_CALL_MODE) },
+                    onNavigateToAiApi = { navController.navigate(ROUTE_SETTINGS_AI_API) },
+                    onNavigateToAiLocalModel = { navController.navigate(ROUTE_SETTINGS_AI_LOCAL_MODEL) },
+                )
+            }
+            composable(ROUTE_SETTINGS_AI_CALL_MODE) {
+                AiCallModeScreen(onBack = { navController.popBackStack() })
+            }
+            composable(ROUTE_SETTINGS_AI_API) {
+                AiApiScreen(onBack = { navController.popBackStack() })
+            }
+            composable(ROUTE_SETTINGS_AI_LOCAL_MODEL) {
+                AiLocalModelScreen(onBack = { navController.popBackStack() })
+            }
             composable("notifications") {
                 NotificationsScreen(onBack = { navController.popBackStack() })
             }

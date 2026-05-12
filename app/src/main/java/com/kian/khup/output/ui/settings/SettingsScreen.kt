@@ -60,7 +60,12 @@ import kotlinx.coroutines.delay
  * 这个页面负责检测当前状态、提供「去开启」按钮、给出 MIUI 二次确认提示。
  */
 @Composable
-fun SettingsScreen(viewModel: SettingsViewModel = hiltViewModel()) {
+fun SettingsScreen(
+    onNavigateToAiCallMode: () -> Unit = {},
+    onNavigateToAiApi: () -> Unit = {},
+    onNavigateToAiLocalModel: () -> Unit = {},
+    viewModel: SettingsViewModel = hiltViewModel(),
+) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val interventionSettings by viewModel.interventionSettings.collectAsStateWithLifecycle()
@@ -174,16 +179,12 @@ fun SettingsScreen(viewModel: SettingsViewModel = hiltViewModel()) {
         )
 
         SectionHeader("AI 设置")
-        AiChannelCard(
+        AiSettingsRows(
             settings = aiSettings,
             modelState = aiModelState,
-            onProviderModeChange = viewModel::setProviderMode,
-            onSaveApi = { url, model, key ->
-                viewModel.setApiBaseUrl(url)
-                viewModel.setApiModel(model)
-                viewModel.setApiKey(key)
-            },
-            onRefreshModel = viewModel::refreshAiModelState,
+            onCallModeClick = onNavigateToAiCallMode,
+            onApiClick = onNavigateToAiApi,
+            onLocalModelClick = onNavigateToAiLocalModel,
         )
 
         SectionHeader("干预阈值")
@@ -202,6 +203,21 @@ fun SettingsScreen(viewModel: SettingsViewModel = hiltViewModel()) {
         )
 
         PrivacyCard()
+    }
+}
+
+@Composable
+private fun AiSettingsRows(
+    settings: AiSettings,
+    modelState: LlmModelState,
+    onCallModeClick: () -> Unit,
+    onApiClick: () -> Unit,
+    onLocalModelClick: () -> Unit,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(Spacing.xxs)) {
+        SettingsRow("调用模式", providerModeLabel(settings.providerMode), onCallModeClick)
+        SettingsRow("API 配置", if (settings.hasApiConfig) "✓ 已配置" else "⚠ 未配置", onApiClick)
+        SettingsRow("本地模型", if (modelState.isReady) "✓ 已就绪" else "⚠ 未找到", onLocalModelClick)
     }
 }
 
@@ -504,16 +520,26 @@ private fun PrivacyCard() {
 }
 
 @Composable
-private fun SettingsRow(title: String, onClick: () -> Unit) {
+private fun SettingsRow(title: String, value: String? = null, onClick: () -> Unit) {
     TextButton(
         onClick = onClick,
         modifier = Modifier.fillMaxWidth(),
     ) {
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             Text(title, style = MaterialTheme.typography.bodyMedium)
-            Text("→", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(
+                text = value?.let { "$it  →" } ?: "→",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
     }
+}
+
+private fun providerModeLabel(mode: AiProviderMode): String = when (mode) {
+    AiProviderMode.LocalFirst -> "本地优先"
+    AiProviderMode.LocalOnly -> "仅本地"
+    AiProviderMode.ApiOnly -> "仅 API"
 }
 
 @Composable
