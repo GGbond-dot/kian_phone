@@ -94,6 +94,7 @@ fun TodayScreen(
             item {
                 MiniObservationCard(
                     observation = state.miniObservation,
+                    narrationText = state.todayNarration,
                     onViewHistory = onNavigateToHistory,
                     onViewNotifications = onNavigateToNotifications,
                 )

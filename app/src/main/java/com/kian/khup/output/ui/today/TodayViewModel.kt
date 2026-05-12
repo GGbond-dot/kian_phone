@@ -8,6 +8,7 @@ import com.kian.khup.core.data.db.AppSessionDao
 import com.kian.khup.core.data.db.AttentionAnomalyDao
 import com.kian.khup.core.data.db.EventDao
 import com.kian.khup.core.data.db.EventType
+import com.kian.khup.core.data.db.TodayNarrationDao
 import com.kian.khup.core.data.db.entities.AnomalySuggestion
 import com.kian.khup.core.data.repository.AnomalySuggestionRepository
 import com.kian.khup.core.data.repository.BehaviorReportRepository
@@ -29,6 +30,7 @@ class TodayViewModel @Inject constructor(
     private val eventDao: EventDao,
     private val anomalyDao: AttentionAnomalyDao,
     private val appSessionDao: AppSessionDao,
+    private val todayNarrationDao: TodayNarrationDao,
     private val aiContextBridge: AiContextBridge,
 ) : ViewModel() {
 
@@ -57,6 +59,7 @@ class TodayViewModel @Inject constructor(
         val checkInText: String = "",
         val isSubmitting: Boolean = false,
         val miniObservation: MiniObservation = MiniObservation(),
+        val todayNarration: String? = null,
         val rejectDialogState: RejectDialogState? = null,
         val navigationEvent: NavigationEvent? = null,
     )
@@ -73,6 +76,15 @@ class TodayViewModel @Inject constructor(
         val todayMs = todayStartLocalMs()
         observeSuggestion()
         observeMiniStats(todayMs)
+        observeTodayNarration(todayMs)
+    }
+
+    private fun observeTodayNarration(todayMs: Long) {
+        viewModelScope.launch {
+            todayNarrationDao.observeForDay(todayMs).collect { row ->
+                _uiState.update { it.copy(todayNarration = row?.narrationText) }
+            }
+        }
     }
 
     private fun observeSuggestion() {

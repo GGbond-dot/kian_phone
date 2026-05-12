@@ -55,6 +55,13 @@ object WorkScheduler {
             PeriodicWorkRequestBuilder<HourlySummaryWorker>(1, TimeUnit.HOURS).build(),
         )
 
+        // 今日观察 narration：每 2 小时一次，AI 生成首页"自然语言一段"。
+        wm.enqueueUniquePeriodicWork(
+            TodayNarrationWorker.UNIQUE_NAME,
+            ExistingPeriodicWorkPolicy.KEEP,
+            PeriodicWorkRequestBuilder<TodayNarrationWorker>(2, TimeUnit.HOURS).build(),
+        )
+
         // 中期记忆压缩：每 7 天通过 LLM 生成近 30 天规律摘要，写入 user_memory。
         wm.enqueueUniquePeriodicWork(
             WeeklyMemoryJob.UNIQUE_NAME,

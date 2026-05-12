@@ -18,6 +18,7 @@ import com.kian.khup.core.data.db.entities.DerivedResult
 import com.kian.khup.core.data.db.entities.Event
 import com.kian.khup.core.data.db.entities.HourlySummary
 import com.kian.khup.core.data.db.entities.RuleState
+import com.kian.khup.core.data.db.entities.TodayNarration
 import com.kian.khup.core.data.db.entities.TriggerTag
 import com.kian.khup.core.data.db.entities.UserFeedback
 import com.kian.khup.core.data.db.entities.UserMemory
@@ -42,8 +43,9 @@ import com.kian.khup.core.data.db.entities.UserMemory
         UserFeedback::class,
         UserMemory::class,
         DailyPlan::class,
+        TodayNarration::class,
     ],
-    version = 14,
+    version = 15,
     exportSchema = true,
 )
 @TypeConverters(Converters::class)
@@ -65,5 +67,6 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun categoryUsageCacheDao(): CategoryUsageCacheDao
     abstract fun dailyPlanDao(): DailyPlanDao
     abstract fun userMemoryDao(): UserMemoryDao
+    abstract fun todayNarrationDao(): TodayNarrationDao
     // TODO Phase 2+：RuleStateDao
 }

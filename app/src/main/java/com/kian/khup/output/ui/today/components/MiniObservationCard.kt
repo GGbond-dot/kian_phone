@@ -4,48 +4,50 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
+import com.kian.khup.output.ui.theme.Spacing
 import com.kian.khup.output.ui.today.TodayViewModel.MiniObservation
 
+/**
+ * 今日观察：优先渲染 AI 生成的自然语言句（L1 无容器），缺失时回退到原 KV 行。
+ */
 @Composable
 fun MiniObservationCard(
     observation: MiniObservation,
+    narrationText: String?,
     onViewHistory: () -> Unit,
     onViewNotifications: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Card(
+    if (!narrationText.isNullOrBlank()) {
+        Text(
+            text = narrationText,
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.onSurface,
+            modifier = modifier.fillMaxWidth(),
+        )
+        return
+    }
+
+    Column(
         modifier = modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        verticalArrangement = Arrangement.spacedBy(Spacing.xxs),
     ) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp),
+        Text("今日观察", style = MaterialTheme.typography.titleSmall)
+        ObservationRow("屏幕时间", formatDuration(observation.screenTimeMs))
+        ObservationRow("状态变化", "${observation.anomalyCount} 次")
+        ObservationRow("写过几段", "${observation.checkInCount} 次")
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
         ) {
-            Text("今日观察", style = MaterialTheme.typography.titleSmall) // TODO: strings.xml
-            ObservationRow("屏幕时间", formatDuration(observation.screenTimeMs)) // TODO
-            ObservationRow("状态变化", "${observation.anomalyCount} 次") // TODO
-            ObservationRow("写过几段", "${observation.checkInCount} 次") // TODO
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-            ) {
-                TextButton(onClick = onViewNotifications) {
-                    Text("查看通知 →") // TODO: strings.xml
-                }
-                TextButton(onClick = onViewHistory) {
-                    Text("查看历史 →") // TODO: strings.xml
-                }
-            }
+            TextButton(onClick = onViewNotifications) { Text("查看通知 →") }
+            TextButton(onClick = onViewHistory) { Text("查看历史 →") }
         }
     }
 }
