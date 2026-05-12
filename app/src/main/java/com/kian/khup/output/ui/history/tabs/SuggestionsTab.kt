@@ -1,19 +1,18 @@
 package com.kian.khup.output.ui.history.tabs
 
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.kian.khup.core.data.db.entities.AnomalySuggestion
 import com.kian.khup.output.ui.history.components.SuggestionRow
+import com.kian.khup.output.ui.theme.Spacing
 
 // TODO: strings.xml
 private val STATUS_ORDER = listOf("PENDING", "ACCEPTED", "POSTPONED", "REJECTED")
@@ -32,7 +31,7 @@ fun SuggestionsTab(
     modifier: Modifier = Modifier,
 ) {
     if (suggestions.isEmpty()) {
-        Box(modifier = modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        Column(modifier = modifier.fillMaxWidth()) {
             Text(
                 text = "还没有任何建议记录。", // TODO: strings.xml
                 style = MaterialTheme.typography.bodyMedium,
@@ -42,18 +41,19 @@ fun SuggestionsTab(
         return
     }
 
-    LazyColumn(modifier = modifier) {
+    Column(
+        modifier = modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(Spacing.xxs),
+    ) {
         STATUS_ORDER.forEach { status ->
             val list = suggestions[status] ?: return@forEach
-            item(key = "header_$status") {
-                Text(
-                    text = "${STATUS_LABELS[status] ?: status} (${list.size})",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                )
-            }
-            items(list, key = { it.id }) { suggestion ->
+            Text(
+                text = "${STATUS_LABELS[status] ?: status} (${list.size})",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+            )
+            list.forEach { suggestion ->
                 val linkedSessionId = linkedSessions[suggestion.id]
                 SuggestionRow(
                     suggestion = suggestion,
