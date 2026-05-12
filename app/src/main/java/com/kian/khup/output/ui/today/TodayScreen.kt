@@ -35,6 +35,7 @@ import com.kian.khup.output.ui.today.components.AnomalySuggestionCard
 import com.kian.khup.output.ui.today.components.MiniObservationCard
 import com.kian.khup.output.ui.today.components.PlanFoldStripe
 import com.kian.khup.output.ui.today.components.QuickCheckInCard
+import com.kian.khup.output.ui.today.components.TodayDataFold
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
@@ -47,7 +48,7 @@ fun TodayScreen(
     onNavigateToHistory: () -> Unit,
     onNavigateToNotifications: () -> Unit,
     onNavigateToDailyPlan: () -> Unit,
-    @Suppress("UNUSED_PARAMETER") onNavigateToAppUsage: () -> Unit,
+    onNavigateToAppUsage: () -> Unit,
     onNavigateToAi: () -> Unit,
     viewModel: TodayViewModel = hiltViewModel(),
 ) {
@@ -77,6 +78,13 @@ fun TodayScreen(
                 Spacer(Modifier.height(Spacing.xl))
             }
             item {
+                MiniObservationCard(
+                    observation = state.miniObservation,
+                    narrationText = state.todayNarration,
+                )
+                Spacer(Modifier.height(Spacing.lg))
+            }
+            item {
                 AnomalySuggestionCard(
                     state = state.suggestionCardState,
                     onAccept = viewModel::acceptSuggestion,
@@ -101,11 +109,11 @@ fun TodayScreen(
                 )
             }
             item {
-                MiniObservationCard(
+                TodayDataFold(
                     observation = state.miniObservation,
-                    narrationText = state.todayNarration,
-                    onViewHistory = onNavigateToHistory,
-                    onViewNotifications = onNavigateToNotifications,
+                    onNavigateToAppUsage = onNavigateToAppUsage,
+                    onNavigateToNotifications = onNavigateToNotifications,
+                    onNavigateToDetails = onNavigateToHistory,
                 )
             }
         }

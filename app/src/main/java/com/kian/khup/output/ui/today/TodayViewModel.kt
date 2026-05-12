@@ -41,6 +41,7 @@ class TodayViewModel @Inject constructor(
         val screenTimeMs: Long = 0L,
         val anomalyCount: Int = 0,
         val checkInCount: Int = 0,
+        val notificationCount: Int = 0,
     )
 
     data class RejectDialogState(val suggestionId: Long)
@@ -129,11 +130,13 @@ class TodayViewModel @Inject constructor(
                 appSessionDao.observeTotalUsageSince(todayMs),
                 anomalyDao.observeForDay(todayMs),
                 eventDao.observeByType(EventType.USER_REPORT, todayMs),
-            ) { screenMs, anomalies, events ->
+                eventDao.observeByType(EventType.NOTIFICATION_POSTED, todayMs),
+            ) { screenMs, anomalies, checkIns, notifications ->
                 MiniObservation(
                     screenTimeMs = screenMs,
                     anomalyCount = anomalies.count { it.status == "ACTIVE" },
-                    checkInCount = events.size,
+                    checkInCount = checkIns.size,
+                    notificationCount = notifications.size,
                 )
             }.collect { obs -> _uiState.update { it.copy(miniObservation = obs) } }
         }

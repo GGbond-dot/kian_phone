@@ -6,10 +6,10 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import com.kian.khup.common.util.formatDuration
 import com.kian.khup.output.ui.theme.Spacing
 import com.kian.khup.output.ui.today.TodayViewModel.MiniObservation
 
@@ -20,8 +20,6 @@ import com.kian.khup.output.ui.today.TodayViewModel.MiniObservation
 fun MiniObservationCard(
     observation: MiniObservation,
     narrationText: String?,
-    onViewHistory: () -> Unit,
-    onViewNotifications: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     if (!narrationText.isNullOrBlank()) {
@@ -42,13 +40,6 @@ fun MiniObservationCard(
         ObservationRow("屏幕时间", formatDuration(observation.screenTimeMs))
         ObservationRow("状态变化", "${observation.anomalyCount} 次")
         ObservationRow("写过几段", "${observation.checkInCount} 次")
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-        ) {
-            TextButton(onClick = onViewNotifications) { Text("查看通知 →") }
-            TextButton(onClick = onViewHistory) { Text("查看历史 →") }
-        }
     }
 }
 
@@ -66,10 +57,4 @@ private fun ObservationRow(label: String, value: String) {
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
-}
-
-private fun formatDuration(ms: Long): String {
-    val hours = ms / 3_600_000
-    val minutes = (ms % 3_600_000) / 60_000
-    return if (hours > 0) "${hours}h ${minutes}m" else "${minutes}m"
 }
