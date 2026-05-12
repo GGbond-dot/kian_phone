@@ -45,7 +45,7 @@ import com.kian.khup.core.data.db.entities.UserMemory
         DailyPlan::class,
         TodayNarration::class,
     ],
-    version = 16,
+    version = 17,
     exportSchema = true,
 )
 @TypeConverters(Converters::class)

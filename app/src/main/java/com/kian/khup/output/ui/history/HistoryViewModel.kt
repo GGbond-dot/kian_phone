@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.kian.khup.common.util.todayStartLocalMs
 import com.kian.khup.core.ai.AiContextBridge
+import com.kian.khup.core.ai.LlmEngine
 import com.kian.khup.core.data.db.AnomalySuggestionDao
 import com.kian.khup.core.data.db.AppSessionDao
 import com.kian.khup.core.data.db.AttentionAnomalyDao
@@ -11,9 +12,11 @@ import com.kian.khup.core.data.db.ChatSessionDao
 import com.kian.khup.core.data.db.DailyUsageTotal
 import com.kian.khup.core.data.db.EventDao
 import com.kian.khup.core.data.db.EventType
+import com.kian.khup.core.data.db.TodayNarrationDao
 import com.kian.khup.core.data.db.UserFeedbackDao
 import com.kian.khup.core.data.db.entities.AnomalySuggestion
 import com.kian.khup.core.data.db.entities.AttentionAnomaly
+import com.kian.khup.core.data.db.entities.TodayNarration
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -32,6 +35,8 @@ class HistoryViewModel @Inject constructor(
     private val eventDao: EventDao,
     private val appSessionDao: AppSessionDao,
     private val chatSessionDao: ChatSessionDao,
+    private val todayNarrationDao: TodayNarrationDao,
+    private val llm: LlmEngine,
     private val aiContextBridge: AiContextBridge,
 ) : ViewModel() {
 
@@ -87,6 +92,9 @@ class HistoryViewModel @Inject constructor(
     private val _trends = MutableStateFlow(TrendsData())
     val trendsState: StateFlow<TrendsData> = _trends.asStateFlow()
 
+    private val _storyNarration = MutableStateFlow<String?>(null)
+    val storyNarrationState: StateFlow<String?> = _storyNarration.asStateFlow()
+
     /** suggestionId → ChatSession.id（被拒后用 [和 AI 聊聊] 产生的会话）。 */
     private val _linkedSessions = MutableStateFlow<Map<Long, Long>>(emptyMap())
     val linkedSessionsState: StateFlow<Map<Long, Long>> = _linkedSessions.asStateFlow()
@@ -95,6 +103,7 @@ class HistoryViewModel @Inject constructor(
         observePatterns()
         observeSuggestions()
         observeTrends()
+        observeStoryNarration()
         observeLinkedSessions()
     }
 
@@ -161,12 +170,61 @@ class HistoryViewModel @Inject constructor(
                         )
                     }
                 }
-                .collect { _trends.value = it }
+                .collect {
+                    _trends.value = it
+                    ensureStoryNarration(it)
+                }
         }
     }
 
+    @OptIn(ExperimentalCoroutinesApi::class)
+    private fun observeStoryNarration() {
+        viewModelScope.launch {
+            _periodDays
+                .flatMapLatest { days ->
+                    todayNarrationDao.observeForPeriod(todayStartLocalMs(), days)
+                }
+                .collect { row -> _storyNarration.value = row?.narrationText }
+        }
+    }
+
+    private fun ensureStoryNarration(trends: TrendsData) {
+        viewModelScope.launch {
+            val todayMs = todayStartLocalMs()
+            if (todayNarrationDao.getForPeriod(todayMs, trends.periodDays) != null) return@launch
+            val prompt = buildStoryPrompt(trends)
+            val narration = llm.generate(prompt).getOrNull()?.trim()?.take(160).orEmpty()
+            if (narration.isBlank()) return@launch
+            todayNarrationDao.upsert(
+                TodayNarration(
+                    dayStartMs = todayMs,
+                    periodDays = trends.periodDays,
+                    narrationText = narration,
+                    generatedAt = System.currentTimeMillis(),
+                    modelVersion = REVIEW_MODEL_VERSION,
+                )
+            )
+        }
+    }
+
+    private fun buildStoryPrompt(trends: TrendsData): String = """
+        你是 KHUP，正在为用户写"这 ${trends.periodDays} 天的故事"。
+        数据：
+          - 用户写了 ${trends.checkInCount} 次检入
+          - 接受了 ${trends.acceptedCount} 条建议
+          - 反馈总数 ${trends.totalFeedbackCount} 条
+          - 有 ${trends.screenTimeByDay.size} 天的屏幕时间记录
+        要求：
+          - 1-2 句中文，不超过 80 个汉字
+          - 不评价，不训诫，只把趋势说成人话
+          - 第二人称"你"
+          - 不出现"异常值"、"回归值"、"接受率"这类术语
+        直接输出那段话，不要任何前缀或解释。
+    """.trimIndent()
+
     private companion object {
         const val DEFAULT_PERIOD_DAYS = 7
+        const val REVIEW_MODEL_VERSION = "review_narration.v1"
     }
 }
 

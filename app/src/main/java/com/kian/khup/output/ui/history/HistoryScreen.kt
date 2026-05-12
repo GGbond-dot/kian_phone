@@ -33,6 +33,7 @@ fun HistoryScreen(
     val patterns by viewModel.patternsState.collectAsStateWithLifecycle()
     val suggestions by viewModel.suggestionsState.collectAsStateWithLifecycle()
     val trends by viewModel.trendsState.collectAsStateWithLifecycle()
+    val storyNarration by viewModel.storyNarrationState.collectAsStateWithLifecycle()
     val periodDays by viewModel.periodDaysState.collectAsStateWithLifecycle()
     val linkedSessions by viewModel.linkedSessionsState.collectAsStateWithLifecycle()
 
@@ -53,7 +54,7 @@ fun HistoryScreen(
             item {
                 SectionTitle("这 $periodDays 天的故事")
                 Text(
-                    text = buildStoryFallback(trends),
+                    text = storyNarration ?: buildStoryFallback(trends),
                     style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.onSurface,
                 )
